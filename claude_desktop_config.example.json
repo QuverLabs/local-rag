@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "local-rag": {
+      "command": "/opt/homebrew/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/<you>/local-rag",
+        "server.py"
+      ]
+    }
+  }
+}

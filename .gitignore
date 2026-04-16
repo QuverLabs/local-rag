@@ -1,0 +1,22 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.DS_Store
+
+# Local Claude Code tool-permission state — not project artifact.
+.claude/
+
+data/extensions/
+data/models/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+dist/
+
+.uv/
+# Note: uv.lock IS tracked — the Windows bundle reproduces deps from it.
