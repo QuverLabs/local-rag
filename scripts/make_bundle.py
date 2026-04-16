@@ -48,7 +48,16 @@ from setup.download_extensions import (
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DIST_DIR = PROJECT_ROOT / "dist"
 
-DEFAULT_UV_VERSION = (PROJECT_ROOT / ".uv-version").read_text().strip()
+
+def _read_uv_version_from_tool_versions() -> str:
+    for line in (PROJECT_ROOT / ".tool-versions").read_text().splitlines():
+        parts = line.split("#", 1)[0].split()
+        if len(parts) == 2 and parts[0] == "uv":
+            return parts[1]
+    raise RuntimeError(".tool-versions is missing a 'uv <version>' line")
+
+
+DEFAULT_UV_VERSION = _read_uv_version_from_tool_versions()
 UV_ASSET = "uv-x86_64-pc-windows-msvc.zip"
 UV_URL_TEMPLATE = "https://github.com/astral-sh/uv/releases/download/{version}/{asset}"
 
