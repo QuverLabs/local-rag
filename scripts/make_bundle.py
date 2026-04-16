@@ -45,12 +45,12 @@ from setup.download_extensions import (
     VECTOR_VERSION,
 )
 
-DEFAULT_UV_VERSION = "0.11.7"
-UV_ASSET = "uv-x86_64-pc-windows-msvc.zip"
-UV_URL_TEMPLATE = "https://github.com/astral-sh/uv/releases/download/{version}/{asset}"
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DIST_DIR = PROJECT_ROOT / "dist"
+
+DEFAULT_UV_VERSION = (PROJECT_ROOT / ".uv-version").read_text().strip()
+UV_ASSET = "uv-x86_64-pc-windows-msvc.zip"
+UV_URL_TEMPLATE = "https://github.com/astral-sh/uv/releases/download/{version}/{asset}"
 
 # Files/dirs copied verbatim from <project>/ into bundle/source/.
 SOURCE_FILES = [
