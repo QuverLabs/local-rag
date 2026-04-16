@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import platform
 
-
 SUPPORTED = {
     ("macos", "arm64"),
     ("windows", "x86_64"),
@@ -34,8 +33,7 @@ def detect() -> tuple[str, str]:
         raise RuntimeError(f"Unsupported Linux architecture: {machine!r}. Expected x86_64.")
 
     raise RuntimeError(
-        f"Unsupported platform: system={system!r}, machine={machine!r}. "
-        f"Supported: {sorted(SUPPORTED)}."
+        f"Unsupported platform: system={system!r}, machine={machine!r}. Supported: {sorted(SUPPORTED)}."
     )
 
 

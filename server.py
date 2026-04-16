@@ -1,4 +1,4 @@
-"""FastMCP server exposing search_memory over a sqlite-memory database."""
+"""FastMCP server exposing local_rag_search over a sqlite-memory database."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ from fastmcp import FastMCP  # noqa: E402
 
 from setup._db import load_extensions, require_env, server_name, set_option  # noqa: E402
 
-
 env_file = Path(__file__).resolve().parent / ".env"
 if env_file.exists():
     load_dotenv(env_file)
@@ -35,9 +34,7 @@ def _open_connection() -> sqlite3.Connection:
     if not memory_db.exists():
         raise SystemExit(f"Memory database not found: {memory_db}. Run ingest.py first.")
     if not model_path.is_file():
-        raise SystemExit(
-            f"Model file not found: {model_path}. Run setup/download_model.py first."
-        )
+        raise SystemExit(f"Model file not found: {model_path}. Run setup/download_model.py first.")
 
     conn = sqlite3.connect(memory_db, check_same_thread=False)
     load_extensions(conn, extensions_dir)
@@ -70,19 +67,19 @@ mcp = FastMCP(SERVER_NAME)
 
 
 @mcp.tool
-def search_memory(query: str, limit: int = 5) -> list[dict]:
+def local_rag_search(query: str, limit: int = 5) -> list[dict]:
     """Hybrid (semantic + keyword) search over the local notes database.
 
     Returns up to `limit` hits, each with: path (source file), snippet (matching
     excerpt), ranking (relevance score; higher = better).
     """
-    log.info("search_memory <- query=%r limit=%d", query, int(limit))
+    log.info("local_rag_search <- query=%r limit=%d", query, int(limit))
     rows = conn.execute(
         "SELECT path, snippet, ranking FROM memory_search WHERE query = ? LIMIT ?",
         [query, int(limit)],
     ).fetchall()
     results = [{"path": row[0], "snippet": row[1], "ranking": row[2]} for row in rows]
-    log.info("search_memory -> %d hits", len(results))
+    log.info("local_rag_search -> %d hits", len(results))
     for i, hit in enumerate(results, 1):
         snippet = (hit["snippet"] or "").replace("\n", " ")
         if len(snippet) > 120:

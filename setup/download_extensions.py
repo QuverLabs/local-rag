@@ -12,7 +12,6 @@ from pathlib import Path
 from setup._http import stream_download
 from setup._platform import detect, extension_suffix
 
-
 VECTOR_VERSION = "0.9.95"
 MEMORY_VERSION = "0.9.0"
 
@@ -41,9 +40,7 @@ def _extract_extension(archive: Path, target_dir: Path, suffix: str, expected_st
         candidates = [m for m in tar.getmembers() if m.isfile() and m.name.lower().endswith(suffix)]
         if not candidates:
             names = ", ".join(m.name for m in tar.getmembers())
-            raise RuntimeError(
-                f"No *{suffix} file found in {archive.name}. Archive contents: {names}"
-            )
+            raise RuntimeError(f"No *{suffix} file found in {archive.name}. Archive contents: {names}")
         # Prefer the shortest path (top-level binary over anything nested).
         member = min(candidates, key=lambda m: len(m.name))
         extracted = target_dir / Path(member.name).name

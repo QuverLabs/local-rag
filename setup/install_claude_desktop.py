@@ -26,16 +26,12 @@ def _config_path(os_tag: str) -> Path:
 def _find_uv() -> Path:
     uv = shutil.which("uv")
     if not uv:
-        raise SystemExit(
-            "Could not find 'uv' on PATH. Install it (brew install uv) or pass --uv <path>."
-        )
+        raise SystemExit("Could not find 'uv' on PATH. Install it (brew install uv) or pass --uv <path>.")
     return Path(uv).resolve()
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Wire the MCP server into Claude Desktop's config."
-    )
+    parser = argparse.ArgumentParser(description="Wire the MCP server into Claude Desktop's config.")
     parser.add_argument(
         "--uv",
         type=Path,
@@ -78,7 +74,7 @@ def main() -> int:
         try:
             config = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError as e:
-            raise SystemExit(f"Existing config at {config_path} is not valid JSON: {e}")
+            raise SystemExit(f"Existing config at {config_path} is not valid JSON: {e}") from e
         backup = config_path.with_suffix(config_path.suffix + ".bak")
         backup.write_bytes(raw)
         print(f"Backed up existing config -> {backup}", file=sys.stderr)
