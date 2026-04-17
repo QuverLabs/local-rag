@@ -66,6 +66,19 @@ conn = _open_connection()
 mcp = FastMCP(SERVER_NAME)
 
 
+def _reconstruct_chunk(full_value: str | None, offset: int, length: int) -> str:
+    """Slice a chunk out of the stored full-document text.
+
+    sqlite-memory stores chunk offset/length in *bytes* of the UTF-8 encoding of
+    dbmem_content.value, while Python strings are indexed by codepoint — so we
+    must round-trip through bytes to pick the right span.
+    """
+    if not full_value or length <= 0:
+        return ""
+    raw = full_value.encode("utf-8")[offset : offset + length]
+    return raw.decode("utf-8", errors="replace").strip()
+
+
 @mcp.tool
 def local_rag_search(query: str, limit: int = 5) -> list[dict]:
     """Hybrid (semantic + keyword) search over the local notes database.
@@ -74,12 +87,36 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
     excerpt), ranking (relevance score; higher = better).
     """
     log.info("local_rag_search <- query=%r limit=%d", query, int(limit))
+    # Pull offset/length + stored content alongside the FTS5 snippet so we can
+    # fall back to the raw chunk text for pure-vector hits (no FTS5 match ⇒
+    # empty snippet from memory_search).
     rows = conn.execute(
-        "SELECT path, snippet, ranking FROM memory_search WHERE query = ? LIMIT ?",
+        """
+        SELECT s.path, s.snippet, s.ranking, v.offset, v.length, c.value
+        FROM memory_search s
+        JOIN dbmem_vault   v ON v.hash = s.hash AND v.seq = s.seq
+        JOIN dbmem_content c ON c.hash = s.hash
+        WHERE s.query = ?
+        LIMIT ?
+        """,
         [query, int(limit)],
     ).fetchall()
-    results = [{"path": row[0], "snippet": row[1], "ranking": row[2]} for row in rows]
-    log.info("local_rag_search -> %d hits", len(results))
+
+    results: list[dict] = []
+    reconstructed = 0
+    for path, snippet, ranking, offset, length, full_value in rows:
+        text = snippet or ""
+        if not text:
+            text = _reconstruct_chunk(full_value, offset, length)
+            if text:
+                reconstructed += 1
+        results.append({"path": path, "snippet": text, "ranking": ranking})
+
+    log.info(
+        "local_rag_search -> %d hits (%d reconstructed from vault)",
+        len(results),
+        reconstructed,
+    )
     for i, hit in enumerate(results, 1):
         snippet = (hit["snippet"] or "").replace("\n", " ")
         if len(snippet) > 120:
