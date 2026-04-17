@@ -9,15 +9,17 @@ import os
 # because the tracker subprocess reads PYTHONWARNINGS at its own startup.
 os.environ.setdefault("PYTHONWARNINGS", "ignore::UserWarning:multiprocessing.resource_tracker")
 
-import sqlite3  # noqa: E402
 import sys  # noqa: E402
 import time  # noqa: E402
 import warnings  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from dotenv import load_dotenv  # noqa: E402
-
-from setup._db import load_extensions, require_env, set_option  # noqa: E402
+from setup._db import (  # noqa: E402
+    load_env,
+    open_memory_connection,
+    require_env_path,
+    set_option,
+)
 
 warnings.filterwarnings(
     "ignore",
@@ -28,14 +30,12 @@ warnings.filterwarnings(
 
 
 def main() -> int:
-    env_file = Path(".env")
-    if env_file.exists():
-        load_dotenv(env_file)
+    load_env()
 
-    notes_dir = Path(require_env("NOTES_DIR")).expanduser().resolve()
-    memory_db = Path(require_env("MEMORY_DB")).expanduser().resolve()
-    extensions_dir = Path(require_env("EXTENSIONS_DIR")).expanduser().resolve()
-    model_path = Path(require_env("MODEL_PATH")).expanduser().resolve()
+    notes_dir = require_env_path("NOTES_DIR")
+    memory_db = require_env_path("MEMORY_DB")
+    extensions_dir = require_env_path("EXTENSIONS_DIR")
+    model_path = require_env_path("MODEL_PATH")
 
     if not notes_dir.is_dir():
         raise SystemExit(f"NOTES_DIR does not exist or is not a directory: {notes_dir}")
@@ -63,10 +63,8 @@ def main() -> int:
     max_tokens = int(os.environ.get("MEMORY_MAX_TOKENS", 256))
     overlap_tokens = int(os.environ.get("MEMORY_OVERLAP_TOKENS", 50))
 
-    conn = sqlite3.connect(memory_db)
+    conn = open_memory_connection(memory_db, extensions_dir, model_path)
     try:
-        load_extensions(conn, extensions_dir)
-        conn.execute("SELECT memory_set_model('local', ?)", [str(model_path)])
         set_option(conn, "max_tokens", max_tokens)
         set_option(conn, "overlap_tokens", overlap_tokens)
         set_option(conn, "vector_weight", vector_weight)
@@ -140,7 +138,8 @@ def main() -> int:
     finally:
         conn.close()
 
-    return 0
+    # Non-zero exit so CI / scripts can detect partial failures.
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
