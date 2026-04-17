@@ -9,9 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-from setup._db import server_name
+from setup._db import load_env, server_name
 from setup._platform import detect
 
 
@@ -64,9 +62,7 @@ def main() -> int:
     if not (project_dir / "server.py").is_file():
         raise SystemExit(f"server.py not found under {project_dir}")
 
-    env_file = project_dir / ".env"
-    if env_file.exists():
-        load_dotenv(env_file)
+    load_env(project_dir)
     name = args.name or server_name()
 
     if config_path.exists():

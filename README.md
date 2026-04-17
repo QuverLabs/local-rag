@@ -157,9 +157,15 @@ local_rag_search(query: str, limit: int = 5) -> list[dict]
 | `MEMORY_TEXT_WEIGHT`    | `0.5`          | Hybrid-search weight (FTS5)                      |
 | `MEMORY_MAX_RESULTS`    | `10`           | Max hits returned by the extension               |
 | `MEMORY_MIN_SCORE`      | `0.6`          | Minimum ranking score                            |
+| `MEMORY_MAX_TOKENS`     | `256`          | Chunk size at ingest time                        |
+| `MEMORY_OVERLAP_TOKENS` | `50`           | Chunk overlap at ingest time                     |
 
 Defaults for the weights are balanced for Polish (0.5/0.5 instead of
-`sqlite-memory`'s default 0.6/0.4).
+`sqlite-memory`'s default 0.6/0.4). The 256/50 chunk defaults are lower than
+`sqlite-memory`'s 512/100 because 512/100 hangs the chunker in an infinite
+loop inside llama.cpp on some Polish markdown files — uninterruptible from
+Python, so `ingest.py` silently wedges. Raise these only if you know your
+corpus doesn't trigger the bug.
 
 ## Development
 
@@ -173,8 +179,8 @@ CI (GitHub Actions) runs the same commands on every push and PR.
 
 ## Known limitations
 
-- **Not incremental.** To re-index, delete `data/memory.db` and re-run
-  `ingest.py`.
+- **Not incremental.** Every `ingest.py` run wipes `data/memory.db` (and its
+  `-wal` / `-shm` / `-journal` siblings) and rebuilds the index from scratch.
 - **Polish retrieval tuning is empirical.** The model expects
   `query:` / `passage:` prefixes that the current ingest does not add. If
   Polish rankings look weak, switch to manual chunking via `memory_add_text`
