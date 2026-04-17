@@ -32,7 +32,7 @@ import sys
 import tarfile
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from setup._http import stream_download
@@ -45,13 +45,21 @@ from setup.download_extensions import (
     VECTOR_VERSION,
 )
 
-
-DEFAULT_UV_VERSION = "0.11.7"
-UV_ASSET = "uv-x86_64-pc-windows-msvc.zip"
-UV_URL_TEMPLATE = "https://github.com/astral-sh/uv/releases/download/{version}/{asset}"
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DIST_DIR = PROJECT_ROOT / "dist"
+
+
+def _read_uv_version_from_tool_versions() -> str:
+    for line in (PROJECT_ROOT / ".tool-versions").read_text().splitlines():
+        parts = line.split("#", 1)[0].split()
+        if len(parts) == 2 and parts[0] == "uv":
+            return parts[1]
+    raise RuntimeError(".tool-versions is missing a 'uv <version>' line")
+
+
+DEFAULT_UV_VERSION = _read_uv_version_from_tool_versions()
+UV_ASSET = "uv-x86_64-pc-windows-msvc.zip"
+UV_URL_TEMPLATE = "https://github.com/astral-sh/uv/releases/download/{version}/{asset}"
 
 # Files/dirs copied verbatim from <project>/ into bundle/source/.
 SOURCE_FILES = [
@@ -187,7 +195,7 @@ This bundle contains everything you need to run the RAG MCP server on Windows:
      (creating the file if missing, backing up any existing one to `.bak`).
 4. Restart Claude Desktop.
 
-In a conversation, the `search_memory` tool should now appear among available tools.
+In a conversation, the `local_rag_search` tool should now appear among available tools.
 
 ## Re-indexing
 
@@ -315,8 +323,8 @@ def _copy_data_artifacts(staging: Path) -> list[Path]:
     memory_db = PROJECT_ROOT / "data" / "memory.db"
     if not memory_db.is_file():
         raise SystemExit(
-            f"data/memory.db not found. Run ingest.py on the Mac first: "
-            f"NOTES_DIR=<your-notes> uv run python ingest.py"
+            "data/memory.db not found. Run ingest.py on the Mac first: "
+            "NOTES_DIR=<your-notes> uv run python ingest.py"
         )
     dst = staging / "data" / "memory.db"
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -326,9 +334,7 @@ def _copy_data_artifacts(staging: Path) -> list[Path]:
     models_src = PROJECT_ROOT / "data" / "models"
     ggufs = sorted(models_src.glob("*.gguf"))
     if not ggufs:
-        raise SystemExit(
-            f"No .gguf model in {models_src}. Run setup/download_model.py first."
-        )
+        raise SystemExit(f"No .gguf model in {models_src}. Run setup/download_model.py first.")
     for gguf in ggufs:
         dst = staging / "data" / "models" / gguf.name
         dst.parent.mkdir(parents=True, exist_ok=True)
@@ -416,7 +422,7 @@ def _build_manifest(staging: Path, bundle_name: str, uv_version: str) -> Path:
         )
     manifest = {
         "bundle": bundle_name,
-        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "uv_version": uv_version,
         "sqlite_vector_version": VECTOR_VERSION,
         "sqlite_memory_version": MEMORY_VERSION,

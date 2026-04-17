@@ -8,7 +8,6 @@ from pathlib import Path
 
 from setup._http import stream_download
 
-
 MODEL_REPO = "Ralriki/multilingual-e5-large-instruct-GGUF"
 MODEL_FILE = "multilingual-e5-large-instruct-q8_0.gguf"
 MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}?download=true"

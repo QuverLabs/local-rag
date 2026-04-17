@@ -8,7 +8,6 @@ from pathlib import Path
 
 from setup._platform import extension_suffix
 
-
 DEFAULT_SERVER_NAME = "local-rag"
 
 

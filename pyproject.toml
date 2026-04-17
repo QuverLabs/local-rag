@@ -2,17 +2,23 @@
 name = "local-rag"
 version = "0.1.0"
 description = "Local RAG over markdown notes using sqlite-memory, exposed to Claude Desktop via MCP."
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
-    "fastmcp>=2.14.7",
-    "python-dotenv>=1.0",
-    "httpx>=0.27",
-    "tqdm>=4.66",
+    "fastmcp>=3.2",
+    "python-dotenv>=1.2",
+    "httpx>=0.28",
+    "tqdm>=4.67",
 ]
 
 [project.scripts]
 rag-ingest = "ingest:main"
 rag-server = "server:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15",
+    "pytest>=9.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -21,3 +27,14 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["setup"]
 include = ["ingest.py", "server.py"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -27,8 +27,7 @@ def main() -> int:
         raise SystemExit(f"NOTES_DIR does not exist or is not a directory: {notes_dir}")
     if not model_path.is_file():
         raise SystemExit(
-            f"Model file not found: {model_path}. "
-            f"Run 'uv run python -m setup.download_model' first."
+            f"Model file not found: {model_path}. Run 'uv run python -m setup.download_model' first."
         )
 
     memory_db.parent.mkdir(parents=True, exist_ok=True)
