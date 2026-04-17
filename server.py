@@ -66,19 +66,6 @@ conn = _open_connection()
 mcp = FastMCP(SERVER_NAME)
 
 
-def _reconstruct_chunk(full_value: str | None, offset: int, length: int) -> str:
-    """Slice a chunk out of the stored full-document text.
-
-    sqlite-memory stores chunk offset/length in *bytes* of the UTF-8 encoding of
-    dbmem_content.value, while Python strings are indexed by codepoint — so we
-    must round-trip through bytes to pick the right span.
-    """
-    if not full_value or length <= 0:
-        return ""
-    raw = full_value.encode("utf-8")[offset : offset + length]
-    return raw.decode("utf-8", errors="replace").strip()
-
-
 @mcp.tool
 def local_rag_search(query: str, limit: int = 5) -> list[dict]:
     """Hybrid (semantic + keyword) search over the local notes database.
@@ -87,12 +74,21 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
     excerpt), ranking (relevance score; higher = better).
     """
     log.info("local_rag_search <- query=%r limit=%d", query, int(limit))
-    # Pull offset/length + stored content alongside the FTS5 snippet so we can
-    # fall back to the raw chunk text for pure-vector hits (no FTS5 match ⇒
-    # empty snippet from memory_search).
+    # Pure-vector hits (no FTS5 match) come back with an empty snippet. Fall
+    # back to the raw chunk text sliced out of dbmem_content.value via the
+    # offset/length stored in dbmem_vault. Offsets are in UTF-8 *bytes*, so
+    # we cast to BLOB before substr — TEXT substr would index by codepoint
+    # and return garbage for non-ASCII spans.
     rows = conn.execute(
         """
-        SELECT s.path, s.snippet, s.ranking, v.offset, v.length, c.value
+        SELECT
+            s.path,
+            s.ranking,
+            COALESCE(
+                NULLIF(s.snippet, ''),
+                CAST(substr(CAST(c.value AS BLOB), v.offset + 1, v.length) AS TEXT)
+            ) AS text,
+            (s.snippet IS NULL OR s.snippet = '') AS reconstructed
         FROM memory_search s
         JOIN dbmem_vault   v ON v.hash = s.hash AND v.seq = s.seq
         JOIN dbmem_content c ON c.hash = s.hash
@@ -102,15 +98,8 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
         [query, int(limit)],
     ).fetchall()
 
-    results: list[dict] = []
-    reconstructed = 0
-    for path, snippet, ranking, offset, length, full_value in rows:
-        text = snippet or ""
-        if not text:
-            text = _reconstruct_chunk(full_value, offset, length)
-            if text:
-                reconstructed += 1
-        results.append({"path": path, "snippet": text, "ranking": ranking})
+    results = [{"path": r[0], "snippet": (r[2] or "").strip(), "ranking": r[1]} for r in rows]
+    reconstructed = sum(1 for r in rows if r[3])
 
     log.info(
         "local_rag_search -> %d hits (%d reconstructed from vault)",

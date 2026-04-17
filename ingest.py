@@ -98,38 +98,30 @@ def main() -> int:
         failed: list[tuple[Path, str]] = []
         total = len(files)
         width = len(str(total))
-        try:
-            for i, path in enumerate(files, 1):
-                rel = path.relative_to(notes_dir)
-                print(
-                    f"[{i:>{width}}/{total}] -->            {rel}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                t0 = time.perf_counter()
-                try:
-                    conn.execute("SELECT memory_add_file(?, ?)", [str(path), context_name])
-                    conn.commit()
-                    status = "ok  "
-                    detail = ""
-                except Exception as exc:
-                    conn.rollback()
-                    failed.append((rel, f"{type(exc).__name__}: {exc}"))
-                    status = "FAIL"
-                    detail = f"  [{type(exc).__name__}: {exc}]"
-                dt = time.perf_counter() - t0
-                print(
-                    f"[{i:>{width}}/{total}] {status} ({dt:5.1f}s) {rel}{detail}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-        except BaseException as exc:
+        for i, path in enumerate(files, 1):
+            rel = path.relative_to(notes_dir)
+            prefix = f"[{i:>{width}}/{total}]"
+            # "-->" line prints before the call so, if the native chunker
+            # hangs (uninterruptible from Python), you can see which file
+            # it's stuck on.
+            print(f"{prefix} -->            {rel}", file=sys.stderr, flush=True)
+            t0 = time.perf_counter()
+            try:
+                conn.execute("SELECT memory_add_file(?, ?)", [str(path), context_name])
+                conn.commit()
+                status = "ok  "
+                detail = ""
+            except Exception as exc:
+                conn.rollback()
+                failed.append((rel, f"{type(exc).__name__}: {exc}"))
+                status = "FAIL"
+                detail = f"  [{type(exc).__name__}: {exc}]"
+            dt = time.perf_counter() - t0
             print(
-                f"\nLoop aborted by {type(exc).__name__}: {exc}",
+                f"{prefix} {status} ({dt:5.1f}s) {rel}{detail}",
                 file=sys.stderr,
                 flush=True,
             )
-            raise
         elapsed = time.perf_counter() - start
 
         ok = total - len(failed)
