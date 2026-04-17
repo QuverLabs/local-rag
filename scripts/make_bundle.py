@@ -429,7 +429,7 @@ def _build_manifest(staging: Path, bundle_name: str, uv_version: str) -> Path:
         "files": entries,
     }
     out = staging / "manifest.json"
-    out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    out.write_text(f"{json.dumps(manifest, indent=2)}\n", encoding="utf-8")
     return out
 
 
@@ -474,7 +474,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    bundle_name = "rag-bundle-" + datetime.now().strftime("%Y-%m-%d-%H%M")
+    bundle_name = f"rag-bundle-{datetime.now().strftime('%Y-%m-%d-%H%M')}"
     out_zip = args.output_dir / f"{bundle_name}.zip"
 
     if out_zip.exists() and not args.force:

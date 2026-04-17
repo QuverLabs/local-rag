@@ -71,7 +71,7 @@ def main() -> int:
             config = json.loads(raw.decode("utf-8"))
         except json.JSONDecodeError as e:
             raise SystemExit(f"Existing config at {config_path} is not valid JSON: {e}") from e
-        backup = config_path.with_suffix(config_path.suffix + ".bak")
+        backup = config_path.with_suffix(f"{config_path.suffix}.bak")
         backup.write_bytes(raw)
         print(f"Backed up existing config -> {backup}", file=sys.stderr)
     else:
@@ -91,8 +91,8 @@ def main() -> int:
         )
     servers[name] = new_entry
 
-    tmp = config_path.with_suffix(config_path.suffix + ".tmp")
-    tmp.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    tmp = config_path.with_suffix(f"{config_path.suffix}.tmp")
+    tmp.write_text(f"{json.dumps(config, indent=2)}\n", encoding="utf-8")
     os.replace(tmp, config_path)
     print(f"Wrote {name!r} MCP server entry to {config_path}")
     print("Restart Claude Desktop to pick up the change.")
