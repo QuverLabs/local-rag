@@ -455,6 +455,7 @@ def _zip_bundle(staging: Path, bundle_name: str, out_zip: Path) -> None:
 
 
 def main() -> int:
+    """Assemble a timestamped Windows distribution ZIP from the current project state."""
     parser = argparse.ArgumentParser(description="Build a Windows distribution bundle")
     parser.add_argument(
         "--output-dir",

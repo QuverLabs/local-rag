@@ -29,6 +29,7 @@ def _find_uv() -> Path:
 
 
 def main() -> int:
+    """Register (or update) this repo's MCP server entry in Claude Desktop's config JSON."""
     parser = argparse.ArgumentParser(description="Wire the MCP server into Claude Desktop's config.")
     parser.add_argument(
         "--uv",

@@ -17,6 +17,7 @@ DEFAULT_MODEL_DIR = Path(__file__).resolve().parent.parent / "data" / "models"
 
 
 def main() -> int:
+    """Download the multilingual-e5-large-instruct GGUF embedding model from Hugging Face."""
     parser = argparse.ArgumentParser(description="Download the GGUF embedding model")
     parser.add_argument(
         "--model-dir",

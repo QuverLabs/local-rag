@@ -61,6 +61,7 @@ def _extract_extension(archive: Path, target_dir: Path, suffix: str, expected_st
 
 
 def main() -> int:
+    """Download and unpack sqlite-vector + sqlite-memory extensions for the current platform."""
     parser = argparse.ArgumentParser(description="Download sqlite-vector + sqlite-memory extensions")
     parser.add_argument(
         "--extensions-dir",

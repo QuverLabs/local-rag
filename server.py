@@ -112,6 +112,7 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
 
 
 def main() -> None:
+    """Start the FastMCP server loop over stdio for Claude Desktop."""
     mcp.run()
 
 
