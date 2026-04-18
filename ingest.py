@@ -30,6 +30,7 @@ warnings.filterwarnings(
 
 
 def main() -> int:
+    """Index markdown notes from NOTES_DIR into MEMORY_DB. Exit 0 on full success, 1 on partial."""
     load_env()
 
     notes_dir = require_env_path("NOTES_DIR")

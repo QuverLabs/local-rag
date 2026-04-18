@@ -31,6 +31,7 @@ def server_name() -> str:
 
 
 def require_env(name: str) -> str:
+    """Return env var ``name`` or exit with a clear error pointing at the .env file."""
     value = os.environ.get(name)
     if not value:
         raise SystemExit(f"Missing required environment variable: {name} (check your .env file)")
@@ -43,6 +44,7 @@ def require_env_path(name: str) -> Path:
 
 
 def load_extensions(conn: sqlite3.Connection, extensions_dir: Path) -> None:
+    """Load the vector + memory sqlite extensions into ``conn`` from ``extensions_dir``."""
     suffix = extension_suffix()
     vector = extensions_dir / f"vector{suffix}"
     memory = extensions_dir / f"memory{suffix}"
@@ -58,6 +60,7 @@ def load_extensions(conn: sqlite3.Connection, extensions_dir: Path) -> None:
 
 
 def set_option(conn: sqlite3.Connection, key: str, value) -> None:
+    """Set a sqlite-memory option (``memory_set_option``) on the given connection."""
     conn.execute("SELECT memory_set_option(?, ?)", [key, value])
 
 

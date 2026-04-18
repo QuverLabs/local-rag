@@ -23,7 +23,7 @@ def stream_download(
     dest, so an interrupted download never leaves a truncated file in place.
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    part = dest.with_suffix(dest.suffix + ".part")
+    part = dest.with_suffix(f"{dest.suffix}.part")
     with httpx.stream("GET", url, follow_redirects=True, timeout=timeout) as response:
         response.raise_for_status()
         total = int(response.headers.get("Content-Length", 0))
@@ -36,9 +36,9 @@ def stream_download(
                 unit_divisor=1024,
                 desc=dest.name,
                 file=sys.stderr,
-            ) as bar,
+            ) as progress,
         ):
             for chunk in response.iter_bytes(chunk_size=chunk_size):
                 fp.write(chunk)
-                bar.update(len(chunk))
+                progress.update(len(chunk))
     os.replace(part, dest)

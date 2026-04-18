@@ -55,11 +55,13 @@ def _extract_extension(archive: Path, target_dir: Path, suffix: str, expected_st
         final = target_dir / f"{expected_stem}{suffix}"
         if extracted != final:
             os.replace(extracted, final)
-        os.chmod(final, 0o755)
+        # 0o755 is required: sqlite3.load_extension rejects non-executable files on macOS/Linux.
+        os.chmod(final, 0o755)  # noqa: S103
         return final
 
 
 def main() -> int:
+    """Download and unpack sqlite-vector + sqlite-memory extensions for the current platform."""
     parser = argparse.ArgumentParser(description="Download sqlite-vector + sqlite-memory extensions")
     parser.add_argument(
         "--extensions-dir",

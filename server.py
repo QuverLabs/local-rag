@@ -37,16 +37,16 @@ def _open_connection() -> sqlite3.Connection:
     if not model_path.is_file():
         raise SystemExit(f"Model file not found: {model_path}. Run setup/download_model.py first.")
 
-    conn = open_memory_connection(memory_db, extensions_dir, model_path, check_same_thread=False)
+    connection = open_memory_connection(memory_db, extensions_dir, model_path, check_same_thread=False)
 
     vector_weight = float(os.environ.get("MEMORY_VECTOR_WEIGHT", 0.5))
     text_weight = float(os.environ.get("MEMORY_TEXT_WEIGHT", 0.5))
     max_results = int(os.environ.get("MEMORY_MAX_RESULTS", 10))
     min_score = float(os.environ.get("MEMORY_MIN_SCORE", 0.6))
-    set_option(conn, "vector_weight", vector_weight)
-    set_option(conn, "text_weight", text_weight)
-    set_option(conn, "max_results", max_results)
-    set_option(conn, "min_score", min_score)
+    set_option(connection, "vector_weight", vector_weight)
+    set_option(connection, "text_weight", text_weight)
+    set_option(connection, "max_results", max_results)
+    set_option(connection, "min_score", min_score)
 
     log.info(
         "Connected to %s (vector_weight=%.2f, text_weight=%.2f, max_results=%d, min_score=%.2f)",
@@ -56,7 +56,7 @@ def _open_connection() -> sqlite3.Connection:
         max_results,
         min_score,
     )
-    return conn
+    return connection
 
 
 conn = _open_connection()
@@ -106,12 +106,13 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
     for i, hit in enumerate(results, 1):
         snippet = (hit["snippet"] or "").replace("\n", " ")
         if len(snippet) > 120:
-            snippet = snippet[:117] + "..."
+            snippet = f"{snippet[:117]}..."
         log.info("  hit %d ranking=%.4f path=%s snippet=%r", i, hit["ranking"], hit["path"], snippet)
     return results
 
 
 def main() -> None:
+    """Start the FastMCP server loop over stdio for Claude Desktop."""
     mcp.run()
 
 
