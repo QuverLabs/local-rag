@@ -113,6 +113,19 @@ def main() -> int:
                 # the real file path so fetch_document and path_filter still work.
                 text = path.read_text(encoding="utf-8")
                 prefixed = f"{PASSAGE_PREFIX}{text}"
+                # The extension dedupes by content hash: two files with identical
+                # bytes share one dbmem_content row. UPDATE-by-value would then
+                # silently overwrite the first file's path. Detect that case up
+                # front and surface it as a per-file failure instead of clobbering.
+                existing = conn.execute(
+                    "SELECT path FROM dbmem_content WHERE value = ?",
+                    [prefixed],
+                ).fetchone()
+                if existing is not None:
+                    raise RuntimeError(
+                        f"identical content already indexed under {existing[0]!r}; "
+                        "deduplicate the source files."
+                    )
                 conn.execute("SELECT memory_add_text(?, ?)", [prefixed, context_name])
                 updated = conn.execute(
                     "UPDATE dbmem_content SET path = ? WHERE value = ?",

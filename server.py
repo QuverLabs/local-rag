@@ -109,21 +109,39 @@ def _search(
         sql += " AND s.path LIKE ?"
         params.append(path_filter)
     sql += " LIMIT ?"
-    params.append(int(limit))
+    # Negative LIMIT in SQLite disables limiting and returns the entire result
+    # set; clamp at zero so a hostile or careless caller can't accidentally
+    # ask for "everything".
+    params.append(max(0, int(limit)))
 
     rows = conn.execute(sql, params).fetchall()
-    results = [
-        {
-            "path": r[0],
-            "snippet": (r[2] or "").removeprefix(PASSAGE_PREFIX).strip(),
-            "ranking": r[1],
-            "chunk_index": r[4],
-            "total_chunks": r[7],
-            "char_offset": r[5],
-            "char_length": r[6],
-        }
-        for r in rows
-    ]
+    # Vault offsets/lengths are coordinates inside the *prefixed* dbmem_content
+    # value, but the snippet and fetch_document content have ``passage: `` stripped
+    # before reaching the caller. Translate offsets into the stripped coordinate
+    # system so they actually point at the chunk in the text the caller sees.
+    prefix_bytes = len(PASSAGE_PREFIX.encode("utf-8"))
+    results = []
+    for r in rows:
+        raw_offset = r[5]
+        raw_length = r[6]
+        if raw_offset >= prefix_bytes:
+            char_offset = raw_offset - prefix_bytes
+            char_length = raw_length
+        else:
+            # First chunk includes the prefix bytes; trim them off the front.
+            char_offset = 0
+            char_length = max(0, raw_length - (prefix_bytes - raw_offset))
+        results.append(
+            {
+                "path": r[0],
+                "snippet": (r[2] or "").removeprefix(PASSAGE_PREFIX).strip(),
+                "ranking": r[1],
+                "chunk_index": r[4],
+                "total_chunks": r[7],
+                "char_offset": char_offset,
+                "char_length": char_length,
+            }
+        )
     reconstructed = sum(1 for r in rows if r[3])
     return results, reconstructed
 
@@ -165,7 +183,9 @@ def local_rag_search(
     - ``ranking`` — relevance score; higher is better
     - ``chunk_index`` — 0-based position of this chunk inside the file
     - ``total_chunks`` — how many chunks the file was split into
-    - ``char_offset`` / ``char_length`` — byte-offset and byte-length of the chunk inside the file
+    - ``char_offset`` / ``char_length`` — byte-offset and byte-length of the chunk
+      inside the returned ``content`` (i.e. with the ``passage: `` indexing prefix
+      already stripped, so the offsets line up with what ``local_rag_fetch_document`` returns)
 
     When ``path_filter`` is provided it is applied as a SQL ``LIKE`` over the source path
     (use ``%`` for wildcards), letting callers scope a query to one document or subtree.

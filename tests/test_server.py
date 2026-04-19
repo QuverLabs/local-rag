@@ -100,13 +100,20 @@ def test_search_prepends_query_prefix_before_lookup():
 
 
 def test_search_hit_includes_chunk_metadata():
+    """Chunk metadata is reported in the coordinate system the caller sees,
+    i.e. the ``passage: `` (9 byte) prefix is removed: chunk 0 spans the
+    first 13 bytes ("Hello world. ") of the stripped content; chunk 1
+    starts at byte 13 and runs 14 bytes ("Goodbye world.")."""
     conn = _fixture_conn()
     results, _ = _search(conn, "hello", limit=5, path_filter=None)
-    first = results[0]
-    assert first["chunk_index"] == 0
+    # Pick by stable identity (path + chunk_index) — _search has no ORDER BY.
+    first = next(r for r in results if r["path"] == "/notes/a.md" and r["chunk_index"] == 0)
+    second = next(r for r in results if r["path"] == "/notes/a.md" and r["chunk_index"] == 1)
     assert first["total_chunks"] == 2
     assert first["char_offset"] == 0
-    assert first["char_length"] == 22
+    assert first["char_length"] == 13  # 22 raw bytes - 9 prefix bytes
+    assert second["char_offset"] == 13  # 22 raw bytes - 9 prefix bytes
+    assert second["char_length"] == 14  # unchanged — chunk past the prefix
 
 
 def test_search_reconstructs_snippet_from_vault_when_empty():

@@ -267,7 +267,10 @@ def main() -> int:
     report = _render_report(run_number, args.label, git_hash, git_dirty, notes_root, params, results, summary)
 
     stamp = datetime.now().strftime("%Y-%m-%d")
-    out_path = HISTORY_DIR / f"{run_number:04d}-{stamp}-{args.label}.md"
+    # Replace path separators so a label like "passage/v2" doesn't try to write
+    # into a non-existent subdirectory of HISTORY_DIR (FileNotFoundError).
+    safe_label = args.label.replace("/", "-").replace("\\", "-")
+    out_path = HISTORY_DIR / f"{run_number:04d}-{stamp}-{safe_label}.md"
     out_path.write_text(report, encoding="utf-8")
     print(f"Wrote {out_path.relative_to(REPO_ROOT)}", file=sys.stderr)
 
