@@ -1,9 +1,9 @@
-# Priorytety pracy w tym repo
+# Working priorities for this repo
 
-- **Jakość retrievalu > wszystko inne.** Nie optymalizuj pod szybkość iteracji
-  ani pod „mniej kodu" kosztem jakości wyników wyszukiwania. Jeśli zmiana
-  poprawia trafność, nawet drobna, jest pożądana.
-- **Re-ingest jest OK.** Nie unikaj zmian, które wymagają ponownego
-  indeksowania bazy (zmiana chunkingu, prefiksów `passage:`/`query:`, modelu,
-  rozszerzenia). Proponuj je wprost, jeśli uważasz że podnoszą jakość —
-  koszt ~minuty re-ingestu jest akceptowalny.
+- **Retrieval quality > everything else.** Don't optimize for iteration speed
+  or "less code" at the expense of search-result quality. If a change improves
+  relevance, even slightly, it's wanted.
+- **Re-ingest is fine.** Don't shy away from changes that require re-indexing
+  the database (chunking, `passage:` / `query:` prefixes, model swap, extension
+  bump). Propose them outright when you think they raise quality — a one-minute
+  re-ingest is an acceptable cost.
