@@ -12,6 +12,14 @@ from setup._platform import extension_suffix
 
 DEFAULT_SERVER_NAME = "local-rag"
 
+# The multilingual-e5-instruct family is trained with an asymmetric prompt:
+# passages get ``passage: `` at index time, queries get ``query: `` at lookup.
+# ingest.py writes the passage form into dbmem_content.value; server.py strips
+# it on read and prepends the query form before hitting memory_search. Shared
+# here so the two sides can't drift out of sync.
+PASSAGE_PREFIX = "passage: "
+QUERY_PREFIX = "query: "
+
 
 def repo_root() -> Path:
     """Absolute path to the repo root (parent of the ``setup`` package)."""
