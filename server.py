@@ -16,13 +16,15 @@ from fastmcp import FastMCP  # noqa: E402
 
 from setup._db import (  # noqa: E402
     PASSAGE_PREFIX,
-    QUERY_PREFIX,
     load_env,
     open_memory_connection,
     require_env_path,
     server_name,
     set_option,
 )
+from setup._text import normalize  # noqa: E402
+
+_PASSAGE_PREFIX_BYTES = len(PASSAGE_PREFIX.encode("utf-8"))
 
 load_env()
 SERVER_NAME = server_name()
@@ -104,7 +106,8 @@ def _search(
         JOIN dbmem_content c ON c.hash = s.hash
         WHERE s.query = ?
     """
-    params: list[object] = [QUERY_PREFIX + query]
+    # Must match the ingest-side normalization; see setup._text.
+    params: list[object] = [normalize(query)]
     if path_filter:
         sql += " AND s.path LIKE ?"
         params.append(path_filter)
@@ -115,22 +118,19 @@ def _search(
     params.append(max(0, int(limit)))
 
     rows = conn.execute(sql, params).fetchall()
-    # Vault offsets/lengths are coordinates inside the *prefixed* dbmem_content
-    # value, but the snippet and fetch_document content have ``passage: `` stripped
-    # before reaching the caller. Translate offsets into the stripped coordinate
-    # system so they actually point at the chunk in the text the caller sees.
-    prefix_bytes = len(PASSAGE_PREFIX.encode("utf-8"))
+    # Vault offsets/lengths index the prefixed dbmem_content.value; callers
+    # see the stripped content, so translate into that coordinate system.
     results = []
     for r in rows:
         raw_offset = r[5]
         raw_length = r[6]
-        if raw_offset >= prefix_bytes:
-            char_offset = raw_offset - prefix_bytes
+        if raw_offset >= _PASSAGE_PREFIX_BYTES:
+            char_offset = raw_offset - _PASSAGE_PREFIX_BYTES
             char_length = raw_length
         else:
-            # First chunk includes the prefix bytes; trim them off the front.
+            # First chunk straddles the prefix; trim what overlaps.
             char_offset = 0
-            char_length = max(0, raw_length - (prefix_bytes - raw_offset))
+            char_length = max(0, raw_length - (_PASSAGE_PREFIX_BYTES - raw_offset))
         results.append(
             {
                 "path": r[0],

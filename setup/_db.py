@@ -12,13 +12,11 @@ from setup._platform import extension_suffix
 
 DEFAULT_SERVER_NAME = "local-rag"
 
-# The multilingual-e5-instruct family is trained with an asymmetric prompt:
-# passages get ``passage: `` at index time, queries get ``query: `` at lookup.
-# ingest.py writes the passage form into dbmem_content.value; server.py strips
-# it on read and prepends the query form before hitting memory_search. Shared
-# here so the two sides can't drift out of sync.
+# Passage-side only. e5-instruct was trained with a matching ``query: ``
+# prefix at lookup time, but memory_search AND-s every query token through
+# FTS5, and ``query`` appears in zero indexed documents — prepending it
+# zeros the BM25 channel. Ingest prefixes; server does not.
 PASSAGE_PREFIX = "passage: "
-QUERY_PREFIX = "query: "
 
 
 def repo_root() -> Path:

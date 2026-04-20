@@ -21,6 +21,7 @@ from setup._db import (  # noqa: E402
     require_env_path,
     set_option,
 )
+from setup._text import normalize  # noqa: E402
 
 warnings.filterwarnings(
     "ignore",
@@ -112,7 +113,8 @@ def main() -> int:
                 # for. memory_add_text auto-generates a hex path; we UPDATE it to
                 # the real file path so fetch_document and path_filter still work.
                 text = path.read_text(encoding="utf-8")
-                prefixed = f"{PASSAGE_PREFIX}{text}"
+                # Must match the server-side normalization; see setup._text.
+                prefixed = f"{PASSAGE_PREFIX}{normalize(text)}"
                 # The extension dedupes by content hash: two files with identical
                 # bytes share one dbmem_content row. UPDATE-by-value would then
                 # silently overwrite the first file's path. Detect that case up
