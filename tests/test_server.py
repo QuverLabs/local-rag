@@ -75,8 +75,11 @@ def test_fetch_document_missing_path_raises_value_error():
 
 
 def test_search_normalizes_query_before_lookup():
+    # Fullwidth input only matches the `hello`-keyed fixture rows *after*
+    # NFKC folds it to ASCII. If `_search` stops calling normalize(), this
+    # test starts seeing 0 rows — which is the whole point of the guard.
     conn = _fixture_conn()
-    results, _ = _search(conn, "hello", limit=5, path_filter=None)
+    results, _ = _search(conn, "ｈｅｌｌｏ", limit=5, path_filter=None)
     assert len(results) == 3
 
 
