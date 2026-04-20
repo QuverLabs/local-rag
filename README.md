@@ -136,12 +136,23 @@ chunks markdown structurally (512-token chunks, 100-token overlap), embeds
 each chunk via llama.cpp, and stores both the vector and raw text for FTS5.
 
 **Serve** (`server.py`): FastMCP stdio server that re-opens the same DB,
-reloads the extensions and model (per-connection state), and exposes one
-tool:
+reloads the extensions and model (per-connection state), and exposes two
+tools:
 
 ```python
-local_rag_search(query: str, limit: int = 5) -> list[dict]
-# each hit: {"path": str, "snippet": str, "ranking": float}
+local_rag_search(query: str, limit: int = 5, path_filter: str | None = None) -> list[dict]
+# each hit: {
+#   "path": str, "snippet": str, "ranking": float,
+#   "chunk_index": int, "total_chunks": int,
+#   "char_offset": int, "char_length": int,
+# }
+# path_filter is a SQL LIKE pattern over the source path (use % as wildcard)
+# so callers can scope a query to one document or subtree.
+
+local_rag_fetch_document(path: str) -> dict
+# returns: {"path": str, "content": str, "length": int, "total_chunks": int}
+# use this after search when a snippet is truncated, a chunk boundary cuts
+# mid-sentence, or you need the surrounding context around a hit.
 ```
 
 ## Configuration (`.env`)

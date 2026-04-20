@@ -1,4 +1,4 @@
-"""FastMCP server exposing local_rag_search over a sqlite-memory database."""
+"""FastMCP server exposing local_rag_search + local_rag_fetch_document over a sqlite-memory database."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 from fastmcp import FastMCP  # noqa: E402
 
 from setup._db import (  # noqa: E402
+    PASSAGE_PREFIX,
+    QUERY_PREFIX,
     load_env,
     open_memory_connection,
     require_env_path,
@@ -59,25 +61,32 @@ def _open_connection() -> sqlite3.Connection:
     return connection
 
 
-conn = _open_connection()
+# Lazy singleton so importing this module (e.g. from tests) does not open the DB.
+_conn: sqlite3.Connection | None = None
+
+
+def _get_conn() -> sqlite3.Connection:
+    global _conn
+    if _conn is None:
+        _conn = _open_connection()
+    return _conn
+
+
 mcp = FastMCP(SERVER_NAME)
 
 
-@mcp.tool
-def local_rag_search(query: str, limit: int = 5) -> list[dict]:
-    """Hybrid (semantic + keyword) search over the local notes database.
-
-    Returns up to `limit` hits, each with: path (source file), snippet (matching
-    excerpt), ranking (relevance score; higher = better).
-    """
-    log.info("local_rag_search <- query=%r limit=%d", query, int(limit))
+def _search(
+    conn: sqlite3.Connection,
+    query: str,
+    limit: int,
+    path_filter: str | None,
+) -> tuple[list[dict], int]:
     # Pure-vector hits (no FTS5 match) come back with an empty snippet. Fall
     # back to the raw chunk text sliced out of dbmem_content.value via the
     # offset/length stored in dbmem_vault. Offsets are in UTF-8 *bytes*, so
     # we cast to BLOB before substr — TEXT substr would index by codepoint
     # and return garbage for non-ASCII spans.
-    rows = conn.execute(
-        """
+    sql = """
         SELECT
             s.path,
             s.ranking,
@@ -85,18 +94,109 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
                 NULLIF(s.snippet, ''),
                 CAST(substr(CAST(c.value AS BLOB), v.offset + 1, v.length) AS TEXT)
             ) AS text,
-            (s.snippet IS NULL OR s.snippet = '') AS reconstructed
+            (s.snippet IS NULL OR s.snippet = '') AS reconstructed,
+            s.seq,
+            v.offset,
+            v.length,
+            (SELECT COUNT(*) FROM dbmem_vault WHERE hash = s.hash) AS total_chunks
         FROM memory_search s
         JOIN dbmem_vault   v ON v.hash = s.hash AND v.seq = s.seq
         JOIN dbmem_content c ON c.hash = s.hash
         WHERE s.query = ?
-        LIMIT ?
-        """,
-        [query, int(limit)],
-    ).fetchall()
+    """
+    params: list[object] = [QUERY_PREFIX + query]
+    if path_filter:
+        sql += " AND s.path LIKE ?"
+        params.append(path_filter)
+    sql += " LIMIT ?"
+    # Negative LIMIT in SQLite disables limiting and returns the entire result
+    # set; clamp at zero so a hostile or careless caller can't accidentally
+    # ask for "everything".
+    params.append(max(0, int(limit)))
 
-    results = [{"path": r[0], "snippet": (r[2] or "").strip(), "ranking": r[1]} for r in rows]
+    rows = conn.execute(sql, params).fetchall()
+    # Vault offsets/lengths are coordinates inside the *prefixed* dbmem_content
+    # value, but the snippet and fetch_document content have ``passage: `` stripped
+    # before reaching the caller. Translate offsets into the stripped coordinate
+    # system so they actually point at the chunk in the text the caller sees.
+    prefix_bytes = len(PASSAGE_PREFIX.encode("utf-8"))
+    results = []
+    for r in rows:
+        raw_offset = r[5]
+        raw_length = r[6]
+        if raw_offset >= prefix_bytes:
+            char_offset = raw_offset - prefix_bytes
+            char_length = raw_length
+        else:
+            # First chunk includes the prefix bytes; trim them off the front.
+            char_offset = 0
+            char_length = max(0, raw_length - (prefix_bytes - raw_offset))
+        results.append(
+            {
+                "path": r[0],
+                "snippet": (r[2] or "").removeprefix(PASSAGE_PREFIX).strip(),
+                "ranking": r[1],
+                "chunk_index": r[4],
+                "total_chunks": r[7],
+                "char_offset": char_offset,
+                "char_length": char_length,
+            }
+        )
     reconstructed = sum(1 for r in rows if r[3])
+    return results, reconstructed
+
+
+def _fetch_document(conn: sqlite3.Connection, path: str) -> dict:
+    row = conn.execute(
+        "SELECT path, value FROM dbmem_content WHERE path = ?",
+        [path],
+    ).fetchone()
+    if row is None:
+        raise ValueError(f"Document not indexed: {path!r}")
+
+    total_chunks = conn.execute(
+        "SELECT COUNT(*) FROM dbmem_vault WHERE hash = (SELECT hash FROM dbmem_content WHERE path = ?)",
+        [path],
+    ).fetchone()[0]
+
+    content = (row[1] or "").removeprefix(PASSAGE_PREFIX)
+    return {
+        "path": row[0],
+        "content": content,
+        "length": len(content),
+        "total_chunks": total_chunks,
+    }
+
+
+@mcp.tool
+def local_rag_search(
+    query: str,
+    limit: int = 5,
+    path_filter: str | None = None,
+) -> list[dict]:
+    """Hybrid (semantic + keyword) search over the local notes database.
+
+    Returns up to ``limit`` hits. Each hit carries:
+
+    - ``path`` — absolute path of the source file
+    - ``snippet`` — matching excerpt (empty FTS snippets are reconstructed from raw chunk bytes)
+    - ``ranking`` — relevance score; higher is better
+    - ``chunk_index`` — 0-based position of this chunk inside the file
+    - ``total_chunks`` — how many chunks the file was split into
+    - ``char_offset`` / ``char_length`` — byte-offset and byte-length of the chunk
+      inside the returned ``content`` (i.e. with the ``passage: `` indexing prefix
+      already stripped, so the offsets line up with what ``local_rag_fetch_document`` returns)
+
+    When ``path_filter`` is provided it is applied as a SQL ``LIKE`` over the source path
+    (use ``%`` for wildcards), letting callers scope a query to one document or subtree.
+    """
+    log.info(
+        "local_rag_search <- query=%r limit=%d path_filter=%r",
+        query,
+        int(limit),
+        path_filter,
+    )
+    results, reconstructed = _search(_get_conn(), query, int(limit), path_filter)
 
     log.info(
         "local_rag_search -> %d hits (%d reconstructed from vault)",
@@ -107,12 +207,43 @@ def local_rag_search(query: str, limit: int = 5) -> list[dict]:
         snippet = (hit["snippet"] or "").replace("\n", " ")
         if len(snippet) > 120:
             snippet = f"{snippet[:117]}..."
-        log.info("  hit %d ranking=%.4f path=%s snippet=%r", i, hit["ranking"], hit["path"], snippet)
+        log.info(
+            "  hit %d ranking=%.4f chunk=%d/%d path=%s snippet=%r",
+            i,
+            hit["ranking"],
+            hit["chunk_index"],
+            hit["total_chunks"],
+            hit["path"],
+            snippet,
+        )
     return results
+
+
+@mcp.tool
+def local_rag_fetch_document(path: str) -> dict:
+    """Return the full indexed text of a single document, keyed by exact path.
+
+    Use this after ``local_rag_search`` when a snippet is truncated, when a chunk
+    boundary cuts mid-sentence, or when you need to verify the surrounding context
+    around a hit. ``path`` must match a value from ``local_rag_search``'s ``path``
+    field exactly.
+
+    Returns ``{path, content, length, total_chunks}``. Raises ``ValueError`` if the
+    path is not in the index.
+    """
+    log.info("local_rag_fetch_document <- path=%r", path)
+    result = _fetch_document(_get_conn(), path)
+    log.info(
+        "local_rag_fetch_document -> %d chars, %d chunks",
+        len(result["content"]),
+        result["total_chunks"],
+    )
+    return result
 
 
 def main() -> None:
     """Start the FastMCP server loop over stdio for Claude Desktop."""
+    _get_conn()  # eager open so connection errors surface at startup, not first tool call
     mcp.run()
 
 

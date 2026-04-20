@@ -15,6 +15,7 @@ import warnings  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from setup._db import (  # noqa: E402
+    PASSAGE_PREFIX,
     load_env,
     open_memory_connection,
     require_env_path,
@@ -106,7 +107,32 @@ def main() -> int:
             print(f"{prefix} -->            {rel}", file=sys.stderr, flush=True)
             t0 = time.perf_counter()
             try:
-                conn.execute("SELECT memory_add_file(?, ?)", [str(path), context_name])
+                # Read + prefix + add_text (instead of memory_add_file) so we can
+                # prepend the 'passage: ' prompt the e5-instruct model was trained
+                # for. memory_add_text auto-generates a hex path; we UPDATE it to
+                # the real file path so fetch_document and path_filter still work.
+                text = path.read_text(encoding="utf-8")
+                prefixed = f"{PASSAGE_PREFIX}{text}"
+                # The extension dedupes by content hash: two files with identical
+                # bytes share one dbmem_content row. UPDATE-by-value would then
+                # silently overwrite the first file's path. Detect that case up
+                # front and surface it as a per-file failure instead of clobbering.
+                existing = conn.execute(
+                    "SELECT path FROM dbmem_content WHERE value = ?",
+                    [prefixed],
+                ).fetchone()
+                if existing is not None:
+                    raise RuntimeError(
+                        f"identical content already indexed under {existing[0]!r}; "
+                        "deduplicate the source files."
+                    )
+                conn.execute("SELECT memory_add_text(?, ?)", [prefixed, context_name])
+                updated = conn.execute(
+                    "UPDATE dbmem_content SET path = ? WHERE value = ?",
+                    [str(path), prefixed],
+                ).rowcount
+                if updated != 1:
+                    raise RuntimeError(f"expected 1 dbmem_content row to update, got {updated}")
                 conn.commit()
                 status = "ok  "
                 detail = ""

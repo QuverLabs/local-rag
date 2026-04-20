@@ -1,0 +1,145 @@
+# Frozen benchmark query set for local-rag.
+#
+# Each run of benchmarks/runner.py uses this file verbatim. Changing it
+# makes past runs non-comparable, so treat it as an append-only ledger:
+# add new queries only when a new class of phenomena emerges (record the
+# rationale in the commit message), and avoid editing existing entries.
+#
+# `expected` is a list of paths relative to NOTES_DIR. A query "hits" when
+# any expected path appears in the top-K. An empty list marks a nonsense
+# query — the runner skips Hit/MRR and measures only top-1 score, which
+# probes calibration of the `min_score` threshold.
+#
+# Categories:
+#   A — natural domain queries with a single obvious target
+#   B — natural queries that could legitimately land on several files
+#   C — exact-string / numeric probes to check BM25/FTS5 health
+#   D — nonsense / adversarial; we want these to score low
+#   E — tricky / generic queries (stress test for robustness)
+
+# ── A. Naturalne, jednoznaczne ────────────────────────────────────────────
+
+[[queries]]
+id = 1
+category = "A"
+query = "renowacja dachu bez zrywania starego pokrycia"
+expected = ["uslugi/renowacja-dachu.md"]
+
+[[queries]]
+id = 2
+category = "A"
+query = "detekcja przecieków na dachu z membraną"
+expected = ["uslugi/serwis-membran-pvc.md"]
+
+[[queries]]
+id = 3
+category = "A"
+query = "linia życia i punkty kotwiczenia na dachu hali"
+expected = ["uslugi/systemy-asekuracyjne.md"]
+
+[[queries]]
+id = 4
+category = "A"
+query = "termomodernizacja dachu przemysłowego"
+expected = ["uslugi/termomodernizacja-dachu.md"]
+
+[[queries]]
+id = 5
+category = "A"
+query = "adres biura i telefon kontaktowy"
+expected = ["kontakt.md"]
+
+[[queries]]
+id = 6
+category = "A"
+query = "polityka prywatności RODO"
+expected = ["polityka-prywatnosci.md", "klauzula-informacyjna.md"]
+
+# ── B. Naturalne, wieloznaczne ────────────────────────────────────────────
+
+[[queries]]
+id = 7
+category = "B"
+query = "gwarancja szczelności 20 lat"
+expected = ["uslugi/renowacja-dachu.md", "index.md", "uslugi.md"]
+
+[[queries]]
+id = 8
+category = "B"
+query = "dla jakich obiektów pracujecie"
+expected = ["o-nas.md", "uslugi.md"]
+
+[[queries]]
+id = 9
+category = "B"
+query = "ile kosztuje renowacja dachu hali"
+expected = ["uslugi/renowacja-dachu.md"]
+
+[[queries]]
+id = 10
+category = "B"
+query = "zgodność z BHP i przepisami"
+expected = ["uslugi/systemy-asekuracyjne.md"]
+
+# ── C. Exact-string / numeryczne (BM25 probe) ─────────────────────────────
+
+[[queries]]
+id = 11
+category = "C"
+query = "PN-EN 795"
+expected = ["uslugi/systemy-asekuracyjne.md"]
+
+[[queries]]
+id = 12
+category = "C"
+query = "+48 730 004 873"
+expected = ["kontakt.md"]
+
+[[queries]]
+id = 13
+category = "C"
+query = "PRO-Leak Control"
+expected = ["uslugi/serwis-membran-pvc.md", "uslugi/systemy-asekuracyjne.md"]
+
+[[queries]]
+id = 14
+category = "C"
+query = "100 000 m²"
+expected = ["uslugi/serwis-membran-pvc.md"]
+
+# ── D. Nonsensowne / adwersarskie ─────────────────────────────────────────
+# Empty `expected` — the runner measures only top-1 score to probe how high
+# the retriever scores irrelevant content (proxy for min_score calibration).
+
+[[queries]]
+id = 15
+category = "D"
+query = "przepis na zupę pomidorową"
+expected = []
+
+[[queries]]
+id = 16
+category = "D"
+query = "jakie akcje kupić w 2026 roku"
+expected = []
+
+[[queries]]
+id = 17
+category = "D"
+query = "quantum entanglement explained"
+expected = []
+
+# ── E. Trudne / generyczne (stress test) ──────────────────────────────────
+
+[[queries]]
+id = 18
+category = "E"
+query = "dach"
+expected = [
+    "index.md",
+    "uslugi.md",
+    "uslugi/renowacja-dachu.md",
+    "uslugi/termomodernizacja-dachu.md",
+    "uslugi/serwis-membran-pvc.md",
+    "uslugi/systemy-asekuracyjne.md",
+]
