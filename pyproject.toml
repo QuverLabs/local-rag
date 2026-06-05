@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Local RAG over markdown notes using sqlite-memory, exposed to Claude Desktop via MCP."
 requires-python = ">=3.14"
 dependencies = [
-    "fastmcp>=3.2",
+    "fastmcp>=3.3.1",
     "python-dotenv>=1.2",
     "httpx>=0.28",
     "tqdm>=4.67",
@@ -16,7 +16,7 @@ rag-server = "server:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15.12",
+    "ruff>=0.15.13",
     "pytest>=9.0.3",
 ]
 
