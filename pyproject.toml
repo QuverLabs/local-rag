@@ -7,7 +7,7 @@ dependencies = [
     "fastmcp>=3.4.2",
     "python-dotenv>=1.2",
     "httpx>=0.28",
-    "tqdm>=4.68.2",
+    "tqdm>=4.68.3",
 ]
 
 [project.scripts]
@@ -16,8 +16,8 @@ rag-server = "server:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15.16",
-    "pytest>=9.0.3",
+    "ruff>=0.15.17",
+    "pytest>=9.1.0",
 ]
 
 [build-system]
