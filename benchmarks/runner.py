@@ -25,8 +25,8 @@ import tomllib
 from datetime import datetime
 from pathlib import Path
 
-from server import _search
-from setup._db import load_env, open_memory_connection, require_env_path, set_option
+from setup._db import env_float, load_env, open_memory_connection, require_env_path, set_option
+from setup._search import search as _search
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BENCH_DIR = REPO_ROOT / "benchmarks"
@@ -233,14 +233,8 @@ def main() -> int:
     extensions_dir = require_env_path("EXTENSIONS_DIR")
     model_path = require_env_path("MODEL_PATH")
 
-    vector_weight = (
-        args.vector_weight
-        if args.vector_weight is not None
-        else float(os.environ.get("MEMORY_VECTOR_WEIGHT", 0.5))
-    )
-    text_weight = (
-        args.text_weight if args.text_weight is not None else float(os.environ.get("MEMORY_TEXT_WEIGHT", 0.5))
-    )
+    vector_weight = args.vector_weight if args.vector_weight is not None else env_float("MEMORY_VECTOR_WEIGHT", 0.5)
+    text_weight = args.text_weight if args.text_weight is not None else env_float("MEMORY_TEXT_WEIGHT", 0.5)
 
     conn = open_memory_connection(memory_db, extensions_dir, model_path, check_same_thread=False)
     set_option(conn, "vector_weight", vector_weight)

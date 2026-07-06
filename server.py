@@ -3,35 +3,39 @@
 from __future__ import annotations
 
 import logging
-import os
-import sqlite3
 import sys
+import threading
+from contextlib import asynccontextmanager
 
 # Configure logging to stderr BEFORE importing/instantiating FastMCP so stdout
 # stays clean for JSON-RPC. Claude Desktop will fail to parse JSON if anything
 # leaks onto stdout.
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 
-from fastmcp import FastMCP  # noqa: E402
+from fastmcp import Context, FastMCP  # noqa: E402
 
 from setup._db import (  # noqa: E402
-    PASSAGE_PREFIX,
+    env_float,
+    env_int,
     load_env,
     open_memory_connection,
     require_env_path,
     server_name,
     set_option,
 )
-from setup._text import normalize  # noqa: E402
+from setup._search import fetch_document, search  # noqa: E402
 
-_PASSAGE_PREFIX_BYTES = len(PASSAGE_PREFIX.encode("utf-8"))
+# Keep private aliases so tests and other callers that reference _search / _fetch_document
+# from this module continue to work without changes.
+_search = search
+_fetch_document = fetch_document
 
 load_env()
 SERVER_NAME = server_name()
 log = logging.getLogger(SERVER_NAME)
 
 
-def _open_connection() -> sqlite3.Connection:
+def _open_connection():
     memory_db = require_env_path("MEMORY_DB")
     extensions_dir = require_env_path("EXTENSIONS_DIR")
     model_path = require_env_path("MODEL_PATH")
@@ -41,16 +45,16 @@ def _open_connection() -> sqlite3.Connection:
     if not model_path.is_file():
         raise SystemExit(f"Model file not found: {model_path}. Run setup/download_model.py first.")
 
-    connection = open_memory_connection(memory_db, extensions_dir, model_path, check_same_thread=False)
+    conn = open_memory_connection(memory_db, extensions_dir, model_path, check_same_thread=False)
 
-    vector_weight = float(os.environ.get("MEMORY_VECTOR_WEIGHT", 0.5))
-    text_weight = float(os.environ.get("MEMORY_TEXT_WEIGHT", 0.5))
-    max_results = int(os.environ.get("MEMORY_MAX_RESULTS", 10))
-    min_score = float(os.environ.get("MEMORY_MIN_SCORE", 0.6))
-    set_option(connection, "vector_weight", vector_weight)
-    set_option(connection, "text_weight", text_weight)
-    set_option(connection, "max_results", max_results)
-    set_option(connection, "min_score", min_score)
+    vector_weight = env_float("MEMORY_VECTOR_WEIGHT", 0.5)
+    text_weight = env_float("MEMORY_TEXT_WEIGHT", 0.5)
+    max_results = env_int("MEMORY_MAX_RESULTS", 10)
+    min_score = env_float("MEMORY_MIN_SCORE", 0.6)
+    set_option(conn, "vector_weight", vector_weight)
+    set_option(conn, "text_weight", text_weight)
+    set_option(conn, "max_results", max_results)
+    set_option(conn, "min_score", min_score)
 
     log.info(
         "Connected to %s (vector_weight=%.2f, text_weight=%.2f, max_results=%d, min_score=%.2f)",
@@ -60,112 +64,20 @@ def _open_connection() -> sqlite3.Connection:
         max_results,
         min_score,
     )
-    return connection
+    return conn
 
 
-# Lazy singleton so importing this module (e.g. from tests) does not open the DB.
-_conn: sqlite3.Connection | None = None
+@asynccontextmanager
+async def _lifespan(server):
+    conn = _open_connection()
+    lock = threading.Lock()
+    try:
+        yield {"conn": conn, "lock": lock}
+    finally:
+        conn.close()
 
 
-def _get_conn() -> sqlite3.Connection:
-    global _conn
-    if _conn is None:
-        _conn = _open_connection()
-    return _conn
-
-
-mcp = FastMCP(SERVER_NAME)
-
-
-def _search(
-    conn: sqlite3.Connection,
-    query: str,
-    limit: int,
-    path_filter: str | None,
-) -> tuple[list[dict], int]:
-    # Pure-vector hits (no FTS5 match) come back with an empty snippet. Fall
-    # back to the raw chunk text sliced out of dbmem_content.value via the
-    # offset/length stored in dbmem_vault. Offsets are in UTF-8 *bytes*, so
-    # we cast to BLOB before substr — TEXT substr would index by codepoint
-    # and return garbage for non-ASCII spans.
-    sql = """
-        SELECT
-            s.path,
-            s.ranking,
-            COALESCE(
-                NULLIF(s.snippet, ''),
-                CAST(substr(CAST(c.value AS BLOB), v.offset + 1, v.length) AS TEXT)
-            ) AS text,
-            (s.snippet IS NULL OR s.snippet = '') AS reconstructed,
-            s.seq,
-            v.offset,
-            v.length,
-            (SELECT COUNT(*) FROM dbmem_vault WHERE hash = s.hash) AS total_chunks
-        FROM memory_search s
-        JOIN dbmem_vault   v ON v.hash = s.hash AND v.seq = s.seq
-        JOIN dbmem_content c ON c.hash = s.hash
-        WHERE s.query = ?
-    """
-    # Must match the ingest-side normalization; see setup._text.
-    params: list[object] = [normalize(query)]
-    if path_filter:
-        sql += " AND s.path LIKE ?"
-        params.append(path_filter)
-    sql += " LIMIT ?"
-    # Negative LIMIT in SQLite disables limiting and returns the entire result
-    # set; clamp at zero so a hostile or careless caller can't accidentally
-    # ask for "everything".
-    params.append(max(0, int(limit)))
-
-    rows = conn.execute(sql, params).fetchall()
-    # Vault offsets/lengths index the prefixed dbmem_content.value; callers
-    # see the stripped content, so translate into that coordinate system.
-    results = []
-    for r in rows:
-        raw_offset = r[5]
-        raw_length = r[6]
-        if raw_offset >= _PASSAGE_PREFIX_BYTES:
-            char_offset = raw_offset - _PASSAGE_PREFIX_BYTES
-            char_length = raw_length
-        else:
-            # First chunk straddles the prefix; trim what overlaps.
-            char_offset = 0
-            char_length = max(0, raw_length - (_PASSAGE_PREFIX_BYTES - raw_offset))
-        results.append(
-            {
-                "path": r[0],
-                "snippet": (r[2] or "").removeprefix(PASSAGE_PREFIX).strip(),
-                "ranking": r[1],
-                "chunk_index": r[4],
-                "total_chunks": r[7],
-                "char_offset": char_offset,
-                "char_length": char_length,
-            }
-        )
-    reconstructed = sum(1 for r in rows if r[3])
-    return results, reconstructed
-
-
-def _fetch_document(conn: sqlite3.Connection, path: str) -> dict:
-    row = conn.execute(
-        "SELECT path, value FROM dbmem_content WHERE path = ?",
-        [path],
-    ).fetchone()
-    if row is None:
-        raise ValueError(f"Document not indexed: {path!r}")
-
-    total_chunks = conn.execute(
-        "SELECT COUNT(*) FROM dbmem_vault WHERE hash = (SELECT hash FROM dbmem_content WHERE path = ?)",
-        [path],
-    ).fetchone()[0]
-
-    content = (row[1] or "").removeprefix(PASSAGE_PREFIX)
-    return {
-        "path": row[0],
-        "content": content,
-        "length": len(content),
-        "total_chunks": total_chunks,
-    }
+mcp = FastMCP(SERVER_NAME, lifespan=_lifespan)
 
 
 @mcp.tool
@@ -173,6 +85,7 @@ def local_rag_search(
     query: str,
     limit: int = 5,
     path_filter: str | None = None,
+    ctx: Context = None,
 ) -> list[dict]:
     """Hybrid (semantic + keyword) search over the local notes database.
 
@@ -190,37 +103,33 @@ def local_rag_search(
     When ``path_filter`` is provided it is applied as a SQL ``LIKE`` over the source path
     (use ``%`` for wildcards), letting callers scope a query to one document or subtree.
     """
-    log.info(
-        "local_rag_search <- query=%r limit=%d path_filter=%r",
-        query,
-        int(limit),
-        path_filter,
-    )
-    results, reconstructed = _search(_get_conn(), query, int(limit), path_filter)
-
+    log.info("local_rag_search <- query=%r limit=%d path_filter=%r", query, limit, path_filter)
+    with ctx.lifespan_context["lock"]:
+        results, reconstructed = search(ctx.lifespan_context["conn"], query, limit, path_filter)
     log.info(
         "local_rag_search -> %d hits (%d reconstructed from vault)",
         len(results),
         reconstructed,
     )
-    for i, hit in enumerate(results, 1):
-        snippet = (hit["snippet"] or "").replace("\n", " ")
-        if len(snippet) > 120:
-            snippet = f"{snippet[:117]}..."
-        log.info(
-            "  hit %d ranking=%.4f chunk=%d/%d path=%s snippet=%r",
-            i,
-            hit["ranking"],
-            hit["chunk_index"],
-            hit["total_chunks"],
-            hit["path"],
-            snippet,
-        )
+    if log.isEnabledFor(logging.DEBUG):
+        for i, hit in enumerate(results, 1):
+            snippet = (hit["snippet"] or "").replace("\n", " ")
+            if len(snippet) > 120:
+                snippet = f"{snippet[:117]}..."
+            log.debug(
+                "  hit %d ranking=%.4f chunk=%d/%d path=%s snippet=%r",
+                i,
+                hit["ranking"],
+                hit["chunk_index"],
+                hit["total_chunks"],
+                hit["path"],
+                snippet,
+            )
     return results
 
 
 @mcp.tool
-def local_rag_fetch_document(path: str) -> dict:
+def local_rag_fetch_document(path: str, ctx: Context = None) -> dict:
     """Return the full indexed text of a single document, keyed by exact path.
 
     Use this after ``local_rag_search`` when a snippet is truncated, when a chunk
@@ -232,7 +141,8 @@ def local_rag_fetch_document(path: str) -> dict:
     path is not in the index.
     """
     log.info("local_rag_fetch_document <- path=%r", path)
-    result = _fetch_document(_get_conn(), path)
+    with ctx.lifespan_context["lock"]:
+        result = fetch_document(ctx.lifespan_context["conn"], path)
     log.info(
         "local_rag_fetch_document -> %d chars, %d chunks",
         len(result["content"]),
@@ -243,7 +153,6 @@ def local_rag_fetch_document(path: str) -> dict:
 
 def main() -> None:
     """Start the FastMCP server loop over stdio for Claude Desktop."""
-    _get_conn()  # eager open so connection errors surface at startup, not first tool call
     mcp.run()
 
 

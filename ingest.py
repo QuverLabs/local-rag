@@ -2,33 +2,19 @@
 
 from __future__ import annotations
 
-import os
+import sys
+import time
+from pathlib import Path
 
-# Silence macOS resource_tracker "leaked semaphore" warnings emitted by the
-# subprocess llama.cpp spawns. Must be set before multiprocessing imports,
-# because the tracker subprocess reads PYTHONWARNINGS at its own startup.
-os.environ.setdefault("PYTHONWARNINGS", "ignore::UserWarning:multiprocessing.resource_tracker")
-
-import sys  # noqa: E402
-import time  # noqa: E402
-import warnings  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-from setup._db import (  # noqa: E402
-    PASSAGE_PREFIX,
+from setup._db import (
+    env_float,
+    env_int,
     load_env,
     open_memory_connection,
     require_env_path,
     set_option,
 )
-from setup._text import normalize  # noqa: E402
-
-warnings.filterwarnings(
-    "ignore",
-    message=r"resource_tracker: There appear to be \d+ leaked semaphore objects",
-    category=UserWarning,
-    module=r"multiprocessing\.resource_tracker",
-)
+from setup._text import PASSAGE_PREFIX, normalize
 
 
 def main() -> int:
@@ -58,13 +44,13 @@ def main() -> int:
     if removed:
         print(f"Removed existing index: {', '.join(removed)}", file=sys.stderr, flush=True)
 
-    vector_weight = float(os.environ.get("MEMORY_VECTOR_WEIGHT", 0.5))
-    text_weight = float(os.environ.get("MEMORY_TEXT_WEIGHT", 0.5))
+    vector_weight = env_float("MEMORY_VECTOR_WEIGHT", 0.5)
+    text_weight = env_float("MEMORY_TEXT_WEIGHT", 0.5)
     # 512/100 tokens hangs the chunker on some Polish markdown files (infinite
     # loop inside llama.cpp, uninterruptible from Python). 256/50 works and is
     # a fine chunk size for retrieval. Override via env if you want to risk it.
-    max_tokens = int(os.environ.get("MEMORY_MAX_TOKENS", 256))
-    overlap_tokens = int(os.environ.get("MEMORY_OVERLAP_TOKENS", 50))
+    max_tokens = env_int("MEMORY_MAX_TOKENS", 256)
+    overlap_tokens = env_int("MEMORY_OVERLAP_TOKENS", 50)
 
     conn = open_memory_connection(memory_db, extensions_dir, model_path)
     try:

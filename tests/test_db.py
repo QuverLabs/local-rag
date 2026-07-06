@@ -34,9 +34,9 @@ def test_require_env_missing(monkeypatch):
 
 
 def test_require_env_empty(monkeypatch):
+    # Empty string is a valid env-var value; only a completely absent var raises.
     monkeypatch.setenv("EMPTY_VAR", "")
-    with pytest.raises(SystemExit, match="EMPTY_VAR"):
-        _db.require_env("EMPTY_VAR")
+    assert _db.require_env("EMPTY_VAR") == ""
 
 
 def test_repo_root_contains_setup_package():

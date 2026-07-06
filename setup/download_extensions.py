@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import tarfile
 import tempfile
 from pathlib import Path
 
+from setup._archive import extract_from_tar_gz
 from setup._http import stream_download
 from setup._platform import detect, extension_suffix
 
@@ -34,30 +34,13 @@ DEFAULT_EXTENSIONS_DIR = Path(__file__).resolve().parent.parent / "data" / "exte
 
 
 def _extract_extension(archive: Path, target_dir: Path, suffix: str, expected_stem: str) -> Path:
-    """Extract the first member ending with `suffix` into target_dir, renamed to expected_stem+suffix."""
+    """Extract the first *suffix binary from a tar.gz, install it as expected_stem+suffix."""
     target_dir.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, "r:gz") as tar:
-        candidates = [m for m in tar.getmembers() if m.isfile() and m.name.lower().endswith(suffix)]
-        if not candidates:
-            names = ", ".join(m.name for m in tar.getmembers())
-            raise RuntimeError(f"No *{suffix} file found in {archive.name}. Archive contents: {names}")
-        # Prefer the shortest path (top-level binary over anything nested).
-        member = min(candidates, key=lambda m: len(m.name))
-        extracted = target_dir / Path(member.name).name
-        with tar.extractfile(member) as src, open(extracted, "wb") as dst:
-            if src is None:
-                raise RuntimeError(f"Failed to open {member.name} from {archive.name}")
-            while True:
-                buf = src.read(65536)
-                if not buf:
-                    break
-                dst.write(buf)
-        final = target_dir / f"{expected_stem}{suffix}"
-        if extracted != final:
-            os.replace(extracted, final)
-        # 0o755 is required: sqlite3.load_extension rejects non-executable files on macOS/Linux.
-        os.chmod(final, 0o755)  # noqa: S103
-        return final
+    final = target_dir / f"{expected_stem}{suffix}"
+    extract_from_tar_gz(archive, suffix, final)
+    # 0o755 is required: sqlite3.load_extension rejects non-executable files on macOS/Linux.
+    os.chmod(final, 0o755)  # noqa: S103
+    return final
 
 
 def main() -> int:
