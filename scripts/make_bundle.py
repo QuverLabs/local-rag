@@ -180,7 +180,9 @@ def _copy_data_artifacts(staging: Path) -> list[Path]:
 _WINDOWS_KEY = ("windows", "x86_64")
 
 
-def _download_windows_extension(staging: Path, url_template: str, version: str, asset: str, out_name: str) -> Path:
+def _download_windows_extension(
+    staging: Path, url_template: str, version: str, asset: str, out_name: str
+) -> Path:
     """Fetch one Windows extension DLL from GitHub Releases into staging/data/extensions/."""
     ext_dir = staging / "data" / "extensions"
     ext_dir.mkdir(parents=True, exist_ok=True)
@@ -322,7 +324,10 @@ def main() -> int:
         print("Step 2/5: copying data artifacts (memory.db + GGUF)...", file=sys.stderr)
         _copy_data_artifacts(staging)
 
-        print("Step 3/5: downloading Windows binaries (vector.dll, memory.dll, uv.exe in parallel)...", file=sys.stderr)
+        print(
+            "Step 3/5: downloading Windows binaries (vector.dll, memory.dll, uv.exe in parallel)...",
+            file=sys.stderr,
+        )
         with ThreadPoolExecutor(max_workers=3) as pool:
             futures = [
                 pool.submit(

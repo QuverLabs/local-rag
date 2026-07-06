@@ -18,9 +18,9 @@ warnings.filterwarnings(
     module=r"multiprocessing\.resource_tracker",
 )
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 
-from setup._platform import extension_suffix
+from setup._platform import extension_suffix  # noqa: E402
 
 DEFAULT_SERVER_NAME = "local-rag"
 

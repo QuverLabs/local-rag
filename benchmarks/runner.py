@@ -233,7 +233,9 @@ def main() -> int:
     extensions_dir = require_env_path("EXTENSIONS_DIR")
     model_path = require_env_path("MODEL_PATH")
 
-    vector_weight = args.vector_weight if args.vector_weight is not None else env_float("MEMORY_VECTOR_WEIGHT", 0.5)
+    vector_weight = (
+        args.vector_weight if args.vector_weight is not None else env_float("MEMORY_VECTOR_WEIGHT", 0.5)
+    )
     text_weight = args.text_weight if args.text_weight is not None else env_float("MEMORY_TEXT_WEIGHT", 0.5)
 
     conn = open_memory_connection(memory_db, extensions_dir, model_path, check_same_thread=False)
