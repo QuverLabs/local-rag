@@ -11,10 +11,17 @@ def test_detect_macos(monkeypatch):
     assert _platform.detect() == ("macos", "arm64")
 
 
-def test_detect_macos_ignores_machine(monkeypatch):
+def test_detect_macos_arm64e(monkeypatch):
+    monkeypatch.setattr(_platform.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(_platform.platform, "machine", lambda: "arm64e")
+    assert _platform.detect() == ("macos", "arm64")
+
+
+def test_detect_macos_x86_64_unsupported(monkeypatch):
     monkeypatch.setattr(_platform.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(_platform.platform, "machine", lambda: "x86_64")
-    assert _platform.detect() == ("macos", "arm64")
+    with pytest.raises(RuntimeError, match="Unsupported macOS architecture"):
+        _platform.detect()
 
 
 @pytest.mark.parametrize("machine", ["AMD64", "x86_64"])

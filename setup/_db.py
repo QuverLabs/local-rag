@@ -4,19 +4,25 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import warnings
 from pathlib import Path
 
-from dotenv import load_dotenv
+# Silence macOS resource_tracker "leaked semaphore" warnings from the
+# subprocess llama.cpp spawns. Must be set before multiprocessing imports;
+# the tracker subprocess reads PYTHONWARNINGS at its own startup.
+os.environ.setdefault("PYTHONWARNINGS", "ignore::UserWarning:multiprocessing.resource_tracker")
+warnings.filterwarnings(
+    "ignore",
+    message=r"resource_tracker: There appear to be \d+ leaked semaphore objects",
+    category=UserWarning,
+    module=r"multiprocessing\.resource_tracker",
+)
 
-from setup._platform import extension_suffix
+from dotenv import load_dotenv  # noqa: E402
+
+from setup._platform import extension_suffix  # noqa: E402
 
 DEFAULT_SERVER_NAME = "local-rag"
-
-# Passage-side only. e5-instruct was trained with a matching ``query: ``
-# prefix at lookup time, but memory_search AND-s every query token through
-# FTS5, and ``query`` appears in zero indexed documents — prepending it
-# zeros the BM25 channel. Ingest prefixes; server does not.
-PASSAGE_PREFIX = "passage: "
 
 
 def repo_root() -> Path:
@@ -39,14 +45,31 @@ def server_name() -> str:
 def require_env(name: str) -> str:
     """Return env var ``name`` or exit with a clear error pointing at the .env file."""
     value = os.environ.get(name)
-    if not value:
+    if value is None:
         raise SystemExit(f"Missing required environment variable: {name} (check your .env file)")
     return value
 
 
 def require_env_path(name: str) -> Path:
-    """Resolve an env var to an absolute, expanded ``Path``."""
-    return Path(require_env(name)).expanduser().resolve()
+    """Resolve an env var to an absolute, expanded ``Path``.
+
+    Rejects empty values explicitly — ``Path("")`` would silently resolve to
+    the current working directory, hiding a misconfigured .env entry.
+    """
+    value = require_env(name)
+    if not value.strip():
+        raise SystemExit(f"Environment variable {name} is empty (check your .env file)")
+    return Path(value).expanduser().resolve()
+
+
+def env_float(name: str, default: float) -> float:
+    """Read a float env var with a default fallback (empty value → default)."""
+    return float(os.environ.get(name) or default)
+
+
+def env_int(name: str, default: int) -> int:
+    """Read an int env var with a default fallback (empty value → default)."""
+    return int(os.environ.get(name) or default)
 
 
 def load_extensions(conn: sqlite3.Connection, extensions_dir: Path) -> None:
@@ -54,9 +77,11 @@ def load_extensions(conn: sqlite3.Connection, extensions_dir: Path) -> None:
     suffix = extension_suffix()
     vector = extensions_dir / f"vector{suffix}"
     memory = extensions_dir / f"memory{suffix}"
-    if not vector.exists() or not memory.exists():
+    missing = [p for p in (vector, memory) if not p.exists()]
+    if missing:
+        names = ", ".join(p.name for p in missing)
         raise SystemExit(
-            f"Extensions not found in {extensions_dir}. "
+            f"Extension(s) not found in {extensions_dir}: {names}. "
             f"Run 'uv run python -m setup.download_extensions' first."
         )
     conn.enable_load_extension(True)
@@ -89,6 +114,10 @@ def open_memory_connection(
     at the call site.
     """
     conn = sqlite3.connect(memory_db, check_same_thread=check_same_thread)
-    load_extensions(conn, extensions_dir)
-    set_model(conn, model_path)
+    try:
+        load_extensions(conn, extensions_dir)
+        set_model(conn, model_path)
+    except Exception:
+        conn.close()
+        raise
     return conn
