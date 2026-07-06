@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "Local RAG over markdown notes using sqlite-memory, exposed to Claude Desktop via MCP."
 requires-python = ">=3.14"
 dependencies = [
-    "fastmcp>=3.4.2",
+    "fastmcp>=3.4.3",
     "python-dotenv>=1.2",
     "httpx>=0.28",
-    "tqdm>=4.68.2",
+    "tqdm>=4.68.3",
 ]
 
 [project.scripts]
@@ -16,8 +16,8 @@ rag-server = "server:main"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.15.16",
-    "pytest>=9.0.3",
+    "ruff>=0.15.20",
+    "pytest>=9.1.1",
 ]
 
 [build-system]
@@ -34,6 +34,11 @@ line-length = 110
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 ignore = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# CurrentContext() in argument defaults is FastMCP's documented DI pattern
+# (same shape as FastAPI's Depends()).
+extend-immutable-calls = ["fastmcp.dependencies.CurrentContext"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

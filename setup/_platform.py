@@ -20,6 +20,11 @@ def detect() -> tuple[str, str]:
     machine = platform.machine().lower()
 
     if system == "Darwin":
+        if machine not in {"arm64", "arm64e"}:
+            raise RuntimeError(
+                f"Unsupported macOS architecture: {machine!r}. "
+                "Only Apple Silicon (arm64) is supported — no x86_64 macOS build is published."
+            )
         return ("macos", "arm64")
 
     if system == "Windows":

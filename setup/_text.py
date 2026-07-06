@@ -5,6 +5,12 @@ from __future__ import annotations
 import re
 import unicodedata
 
+# Passage-side only. e5-instruct was trained with a matching ``query: ``
+# prefix at lookup time, but memory_search AND-s every query token through
+# FTS5, and ``query`` appears in zero indexed documents — prepending it
+# zeros the BM25 channel. Ingest prefixes; server does not.
+PASSAGE_PREFIX = "passage: "
+
 # Lookbehind/lookahead so "100 dachów" (digit-space-letter) and "abc 123"
 # (letter-space-digit) pass through; only digit-digit gaps collapse. After
 # NFKC both NBSP (U+00A0) and narrow NBSP (U+202F) already fold to ASCII

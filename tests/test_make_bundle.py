@@ -7,6 +7,7 @@ import zipfile
 import pytest
 
 from scripts import make_bundle
+from setup._archive import extract_from_tar_gz as _extract_from_tar_gz
 
 
 @pytest.mark.parametrize(
@@ -66,7 +67,7 @@ def test_extract_from_tar_gz_picks_shortest_path(tmp_path):
             tar.add(blob, arcname=name)
 
     out = tmp_path / "extracted.dll"
-    make_bundle._extract_from_tar_gz(archive, ".dll", out)
+    _extract_from_tar_gz(archive, ".dll", out)
     assert out.read_bytes() == b"TOP"
 
 
@@ -78,7 +79,7 @@ def test_extract_from_tar_gz_no_match_raises(tmp_path):
         tar.add(blob, arcname="readme.txt")
 
     with pytest.raises(RuntimeError, match=r"No \*\.dll"):
-        make_bundle._extract_from_tar_gz(archive, ".dll", tmp_path / "out.dll")
+        _extract_from_tar_gz(archive, ".dll", tmp_path / "out.dll")
 
 
 def test_extract_uv_exe_prefers_top_level(tmp_path):
