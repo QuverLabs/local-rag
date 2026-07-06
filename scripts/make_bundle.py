@@ -177,36 +177,20 @@ def _copy_data_artifacts(staging: Path) -> list[Path]:
     return copied
 
 
-def _download_windows_extensions(staging: Path) -> list[Path]:
-    """Fetch Windows vector.dll + memory.dll in parallel into staging/data/extensions/."""
+_WINDOWS_KEY = ("windows", "x86_64")
+
+
+def _download_windows_extension(staging: Path, url_template: str, version: str, asset: str, out_name: str) -> Path:
+    """Fetch one Windows extension DLL from GitHub Releases into staging/data/extensions/."""
     ext_dir = staging / "data" / "extensions"
     ext_dir.mkdir(parents=True, exist_ok=True)
 
-    key = ("windows", "x86_64")
-
     with tempfile.TemporaryDirectory() as tmp_str:
-        tmp = Path(tmp_str)
-
-        def _fetch_vector() -> Path:
-            url = VECTOR_URL_TEMPLATE.format(version=VECTOR_VERSION, asset=VECTOR_ASSETS[key])
-            archive = tmp / VECTOR_ASSETS[key]
-            stream_download(url, archive, timeout=120.0)
-            out = ext_dir / "vector.dll"
-            extract_from_tar_gz(archive, ".dll", out)
-            return out
-
-        def _fetch_memory() -> Path:
-            url = MEMORY_URL_TEMPLATE.format(version=MEMORY_VERSION, asset=MEMORY_ASSETS[key])
-            archive = tmp / MEMORY_ASSETS[key]
-            stream_download(url, archive, timeout=120.0)
-            out = ext_dir / "memory.dll"
-            extract_from_tar_gz(archive, ".dll", out)
-            return out
-
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            fv = pool.submit(_fetch_vector)
-            fm = pool.submit(_fetch_memory)
-            return [fv.result(), fm.result()]
+        archive = Path(tmp_str) / asset
+        stream_download(url_template.format(version=version, asset=asset), archive, timeout=120.0)
+        out = ext_dir / out_name
+        extract_from_tar_gz(archive, ".dll", out)
+    return out
 
 
 def _download_portable_uv(staging: Path, uv_version: str) -> Path:
@@ -339,11 +323,28 @@ def main() -> int:
         _copy_data_artifacts(staging)
 
         print("Step 3/5: downloading Windows binaries (vector.dll, memory.dll, uv.exe in parallel)...", file=sys.stderr)
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            f_ext = pool.submit(_download_windows_extensions, staging)
-            f_uv = pool.submit(_download_portable_uv, staging, uv_version)
-            f_ext.result()
-            f_uv.result()
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = [
+                pool.submit(
+                    _download_windows_extension,
+                    staging,
+                    VECTOR_URL_TEMPLATE,
+                    VECTOR_VERSION,
+                    VECTOR_ASSETS[_WINDOWS_KEY],
+                    "vector.dll",
+                ),
+                pool.submit(
+                    _download_windows_extension,
+                    staging,
+                    MEMORY_URL_TEMPLATE,
+                    MEMORY_VERSION,
+                    MEMORY_ASSETS[_WINDOWS_KEY],
+                    "memory.dll",
+                ),
+                pool.submit(_download_portable_uv, staging, uv_version),
+            ]
+            for future in futures:
+                future.result()
 
         print("Step 4/5: writing installers and README...", file=sys.stderr)
         _write_installers_and_readme(staging)

@@ -51,18 +51,25 @@ def require_env(name: str) -> str:
 
 
 def require_env_path(name: str) -> Path:
-    """Resolve an env var to an absolute, expanded ``Path``."""
-    return Path(require_env(name)).expanduser().resolve()
+    """Resolve an env var to an absolute, expanded ``Path``.
+
+    Rejects empty values explicitly — ``Path("")`` would silently resolve to
+    the current working directory, hiding a misconfigured .env entry.
+    """
+    value = require_env(name)
+    if not value.strip():
+        raise SystemExit(f"Environment variable {name} is empty (check your .env file)")
+    return Path(value).expanduser().resolve()
 
 
 def env_float(name: str, default: float) -> float:
-    """Read a float env var with a default fallback."""
-    return float(os.environ.get(name, default))
+    """Read a float env var with a default fallback (empty value → default)."""
+    return float(os.environ.get(name) or default)
 
 
 def env_int(name: str, default: int) -> int:
-    """Read an int env var with a default fallback."""
-    return int(os.environ.get(name, default))
+    """Read an int env var with a default fallback (empty value → default)."""
+    return int(os.environ.get(name) or default)
 
 
 def load_extensions(conn: sqlite3.Connection, extensions_dir: Path) -> None:

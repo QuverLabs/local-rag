@@ -61,6 +61,45 @@ def test_require_env_path_missing(monkeypatch):
         _db.require_env_path("MISSING_PATH")
 
 
+def test_require_env_path_empty_rejected(monkeypatch):
+    # Path("") resolves to cwd — an empty .env entry must fail loudly instead.
+    monkeypatch.setenv("EMPTY_PATH", "")
+    with pytest.raises(SystemExit, match="EMPTY_PATH"):
+        _db.require_env_path("EMPTY_PATH")
+
+
+def test_require_env_path_whitespace_rejected(monkeypatch):
+    monkeypatch.setenv("BLANK_PATH", "   ")
+    with pytest.raises(SystemExit, match="BLANK_PATH"):
+        _db.require_env_path("BLANK_PATH")
+
+
+def test_env_float_reads_value(monkeypatch):
+    monkeypatch.setenv("SOME_FLOAT", "0.25")
+    assert _db.env_float("SOME_FLOAT", 0.5) == 0.25
+
+
+def test_env_float_missing_returns_default(monkeypatch):
+    monkeypatch.delenv("MISSING_FLOAT", raising=False)
+    assert _db.env_float("MISSING_FLOAT", 0.5) == 0.5
+
+
+def test_env_float_empty_returns_default(monkeypatch):
+    # `MEMORY_VECTOR_WEIGHT=` left blank in .env must not crash with float("").
+    monkeypatch.setenv("EMPTY_FLOAT", "")
+    assert _db.env_float("EMPTY_FLOAT", 0.5) == 0.5
+
+
+def test_env_int_reads_value(monkeypatch):
+    monkeypatch.setenv("SOME_INT", "128")
+    assert _db.env_int("SOME_INT", 256) == 128
+
+
+def test_env_int_empty_returns_default(monkeypatch):
+    monkeypatch.setenv("EMPTY_INT", "")
+    assert _db.env_int("EMPTY_INT", 256) == 256
+
+
 def test_load_env_reads_from_project_dir(monkeypatch, tmp_path):
     monkeypatch.delenv("LOCAL_RAG_TEST_KEY", raising=False)
     (tmp_path / ".env").write_text("LOCAL_RAG_TEST_KEY=from_env_file\n")

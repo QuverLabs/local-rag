@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 
 from fastmcp import Context, FastMCP  # noqa: E402
+from fastmcp.dependencies import CurrentContext  # noqa: E402
 
 from setup._db import (  # noqa: E402
     env_float,
@@ -24,11 +25,6 @@ from setup._db import (  # noqa: E402
     set_option,
 )
 from setup._search import fetch_document, search  # noqa: E402
-
-# Keep private aliases so tests and other callers that reference _search / _fetch_document
-# from this module continue to work without changes.
-_search = search
-_fetch_document = fetch_document
 
 load_env()
 SERVER_NAME = server_name()
@@ -85,7 +81,7 @@ def local_rag_search(
     query: str,
     limit: int = 5,
     path_filter: str | None = None,
-    ctx: Context = None,
+    ctx: Context = CurrentContext(),
 ) -> list[dict]:
     """Hybrid (semantic + keyword) search over the local notes database.
 
@@ -129,7 +125,7 @@ def local_rag_search(
 
 
 @mcp.tool
-def local_rag_fetch_document(path: str, ctx: Context = None) -> dict:
+def local_rag_fetch_document(path: str, ctx: Context = CurrentContext()) -> dict:
     """Return the full indexed text of a single document, keyed by exact path.
 
     Use this after ``local_rag_search`` when a snippet is truncated, when a chunk

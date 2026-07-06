@@ -4,7 +4,8 @@ import sqlite3
 
 import pytest
 
-from server import _fetch_document, _search
+from setup._search import fetch_document as _fetch_document
+from setup._search import search as _search
 
 
 def _fixture_conn() -> sqlite3.Connection:
