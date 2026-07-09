@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "Local RAG over markdown notes using sqlite-memory, exposed to Claude Desktop via MCP."
 requires-python = ">=3.14"
 dependencies = [
-    "fastmcp>=3.4.3",
+    "fastmcp>=3.4.4",
     "python-dotenv>=1.2",
     "httpx>=0.28",
-    "tqdm>=4.68.3",
+    "tqdm>=4.68.4",
 ]
 
 [project.scripts]
