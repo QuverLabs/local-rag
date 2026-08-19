@@ -18,11 +18,53 @@ keys, no external vector DB.
 
 - **macOS** (Apple Silicon) for indexing; **Windows x64** supported for
   server-only via a self-contained ZIP bundle.
+- **Docker:** Linux x86-64 is supported through the provided image.
+  Apple Silicon runs this image through `linux/amd64` emulation.
 - **Python 3.14+** (Homebrew — the system Python on macOS cannot load SQLite
   extensions).
 - **uv** (`brew install uv`).
 - **~1.5 GB** disk (model + DB).
 - **Claude Desktop** installed.
+
+---
+
+## Docker quickstart
+
+The container keeps generated extensions, the embedding model, the SQLite
+index, and a source manifest in the named volume `local-rag-data`. Mount the
+directory containing Markdown sources read-only at `/notes`.
+
+```bash
+# Build the Linux x86-64 image.
+docker build --platform linux/amd64 -t local-rag:dev .
+
+# Prepare, index when needed, and start the stdio MCP server.
+docker run --rm -i \
+  --platform linux/amd64 \
+  -v local-rag-data:/data \
+  -v /absolute/path/to/markdown:/notes:ro \
+  local-rag:dev
+```
+
+On every start the container downloads any missing SQLite extensions and the
+~603 MB embedding model. It then hashes the relative paths and contents of all
+`.md` files below `/notes`. A missing index or changed manifest triggers a full
+re-ingest; unchanged sources reuse the existing index. Artifacts and the index
+survive removal of the container because they live in `local-rag-data`.
+
+After preparation the process starts the stdio MCP server and waits for JSON-RPC
+on standard input. No port is published. A desktop MCP client should launch the
+same `docker run` command as its subprocess. A shared HTTP service would require
+a separate transport and an authentication layer.
+
+The image runs without root privileges, and the Markdown source mount is
+read-only. The first start requires outbound Internet access; later starts can
+run offline once the artifacts are present.
+
+On Apple Silicon Docker Desktop emulates the Linux x86-64 image because the
+upstream SQLite extension does not publish a Linux arm64 binary. Native macOS
+execution remains faster for local indexing; the container is intended mainly
+for x86-64 Docker hosts.
 
 ---
 
