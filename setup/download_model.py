@@ -9,8 +9,10 @@ from pathlib import Path
 from setup._http import stream_download
 
 MODEL_REPO = "Ralriki/multilingual-e5-large-instruct-GGUF"
+MODEL_REVISION = "8738f8d3d8f311808479ecd5756607e24c6ca811"
 MODEL_FILE = "multilingual-e5-large-instruct-q8_0.gguf"
-MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/main/{MODEL_FILE}?download=true"
+MODEL_SHA256 = "2fa4f519b83ecd31a35265b9dd43790bf0abd1ff942e7b982861ee674dc7bec8"
+MODEL_URL = f"https://huggingface.co/{MODEL_REPO}/resolve/{MODEL_REVISION}/{MODEL_FILE}?download=true"
 EXPECTED_MIN_BYTES = 500 * 1024 * 1024  # 500 MB sanity floor; actual ~603 MB
 
 DEFAULT_MODEL_DIR = Path(__file__).resolve().parent.parent / "data" / "models"
@@ -40,7 +42,13 @@ def main() -> int:
         return 0
 
     print(f"Downloading {MODEL_URL}", file=sys.stderr)
-    stream_download(MODEL_URL, dest, timeout=300.0, chunk_size=1024 * 1024)
+    stream_download(
+        MODEL_URL,
+        dest,
+        timeout=300.0,
+        chunk_size=1024 * 1024,
+        expected_sha256=MODEL_SHA256,
+    )
 
     size = dest.stat().st_size
     if size < EXPECTED_MIN_BYTES:

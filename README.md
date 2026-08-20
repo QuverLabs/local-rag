@@ -30,9 +30,11 @@ keys, no external vector DB.
 
 ## Docker quickstart
 
-The container keeps generated extensions, the embedding model, the SQLite
-index, and a source manifest in the named volume `local-rag-data`. Mount the
-directory containing Markdown sources read-only at `/notes`.
+The container keeps verified extensions, the embedding model, the SQLite
+index, artifact metadata, and a source manifest in the named volume
+`local-rag-data`. Mount the directory containing Markdown sources read-only at
+`/notes`; startup fails instead of serving an empty index when no `.md` files
+are present.
 
 ```bash
 # Build the Linux x86-64 image.
@@ -46,11 +48,17 @@ docker run --rm -i \
   local-rag:dev
 ```
 
-On every start the container downloads any missing SQLite extensions and the
-~603 MB embedding model. It then hashes the relative paths and contents of all
-`.md` files below `/notes`. A missing index or changed manifest triggers a full
-re-ingest; unchanged sources reuse the existing index. Artifacts and the index
-survive removal of the container because they live in `local-rag-data`.
+On every start the container verifies pinned SHA-256 values for the SQLite
+extensions and the ~603 MB embedding model. Missing, changed, or version-mismatched
+artifacts are downloaded again. It then hashes the relative paths and contents
+of all `.md` files below `/notes`. A missing index or changed manifest triggers
+a full re-ingest; unchanged sources reuse the existing index.
+
+Index updates sharing one volume are serialized. A new database is built next
+to the active index and replaces it atomically only after successful ingest and
+source verification. The last valid index therefore survives a failed rebuild.
+Artifacts and the index survive removal of the container because they live in
+`local-rag-data`.
 
 After preparation the process starts the stdio MCP server and waits for JSON-RPC
 on standard input. No port is published. A desktop MCP client should launch the

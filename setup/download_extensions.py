@@ -27,6 +27,18 @@ MEMORY_ASSETS = {
     ("linux", "x86_64"): f"memory-linux-x86_64-local-{MEMORY_VERSION}.tar.gz",
 }
 
+VECTOR_ARCHIVE_SHA256 = {
+    ("macos", "arm64"): "eeece607bc146b665838b3c11b79bcb53aa5a59ec4a7679345ee6f7f142c3d4f",
+    ("windows", "x86_64"): "0588496c30c3bf69edace2b507a967be1daa7332bdcd18c8ba21f9fa6f6df7ae",
+    ("linux", "x86_64"): "69dfe7dcdb9278ce4d8b09b0b31e006040e38d1d55d2af286a20e6f152cda901",
+}
+
+MEMORY_ARCHIVE_SHA256 = {
+    ("macos", "arm64"): "226f67306f4b6d1992c578ebf289dff13dc960ae799741fd884e809026f70485",
+    ("windows", "x86_64"): "0cb5a7093f69d865edcb9052a19aa3d5a5512d8c6716e313d43f53a43069e5b5",
+    ("linux", "x86_64"): "45a345cd45235ce68a8ebe975be1ed67ec9fec46ad0f2297150f1e2fe65fdd3f",
+}
+
 VECTOR_URL_TEMPLATE = "https://github.com/sqliteai/sqlite-vector/releases/download/{version}/{asset}"
 MEMORY_URL_TEMPLATE = "https://github.com/sqliteai/sqlite-memory/releases/download/{version}/{asset}"
 
@@ -80,13 +92,13 @@ def main() -> int:
         vector_url = VECTOR_URL_TEMPLATE.format(version=VECTOR_VERSION, asset=VECTOR_ASSETS[key])
         vector_archive = tmp / VECTOR_ASSETS[key]
         print(f"Downloading {vector_url}", file=sys.stderr)
-        stream_download(vector_url, vector_archive)
+        stream_download(vector_url, vector_archive, expected_sha256=VECTOR_ARCHIVE_SHA256[key])
         vector_path = _extract_extension(vector_archive, args.extensions_dir, suffix, "vector")
 
         memory_url = MEMORY_URL_TEMPLATE.format(version=MEMORY_VERSION, asset=MEMORY_ASSETS[key])
         memory_archive = tmp / MEMORY_ASSETS[key]
         print(f"Downloading {memory_url}", file=sys.stderr)
-        stream_download(memory_url, memory_archive)
+        stream_download(memory_url, memory_archive, expected_sha256=MEMORY_ARCHIVE_SHA256[key])
         memory_path = _extract_extension(memory_archive, args.extensions_dir, suffix, "memory")
 
     print("Extensions installed:")

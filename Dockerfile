@@ -1,8 +1,8 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 
-FROM ghcr.io/astral-sh/uv:0.11.19 AS uv
+FROM ghcr.io/astral-sh/uv:0.11.19@sha256:b46b03ddfcfbf8f547af7e9eaefdf8a39c8cebcba7c98858d3162bd28cf536f6 AS uv
 
-FROM python:3.14-slim-bookworm
+FROM python:3.14-slim-bookworm@sha256:23c59390fc717bf09f9336908199a0ae75d9c4264bf296123f94ad772fea3b52
 
 ARG APP_UID=10001
 ARG APP_GID=10001
@@ -23,7 +23,7 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --locked --no-dev --no-install-project
 
 COPY --chown=${APP_UID}:${APP_GID} . /app
 
@@ -36,4 +36,4 @@ USER app
 
 VOLUME ["/data"]
 
-ENTRYPOINT ["python", "/app/docker/start.py"]
+ENTRYPOINT ["python", "-m", "docker.start"]
