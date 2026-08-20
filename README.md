@@ -30,36 +30,60 @@ keys, no external vector DB.
 
 ## Docker quickstart
 
-The image uses fixed paths: read-only Markdown input at `/notes` and generated
-state at `/data`. Startup fails when `/notes` contains no `.md` files.
+This setup needs Docker running (Docker Desktop on macOS/Windows or Docker
+Engine on Linux) and a directory containing at least one `.md` file. The image
+is built locally; it is not published in a container registry.
+
+### Install
+
+macOS:
 
 ```bash
-# Build the Linux x86-64 image.
-docker build --platform linux/amd64 -t local-rag:dev .
-
-# Prepare, index when needed, and start the stdio MCP server.
-docker run --rm -i \
-  --platform linux/amd64 \
-  -v local-rag-data:/data \
-  -v /absolute/path/to/markdown:/notes:ro \
-  local-rag:dev
+./scripts/install_docker.sh /path/to/markdown
 ```
 
-The first start downloads and verifies the SQLite extensions and ~603 MB model;
-later starts can work offline. A fingerprint covers Markdown paths and content,
-artifact versions, chunk size, and overlap. Changed inputs trigger a full
-re-ingest; unchanged inputs reuse the index. Rebuilds sharing a volume are
-serialized and replace the database only after success, preserving the last
-valid index in `local-rag-data`.
+Windows PowerShell:
 
-The non-root container then runs the MCP server over JSON-RPC on `stdin` and
-`stdout`; it publishes no port. Desktop clients should launch the same
-`docker run` command. HTTP deployment would need a separate transport and
-authentication. Docker path variables are intentionally not configurable.
+```powershell
+.\scripts\install_docker.ps1 C:\path\to\markdown
+```
 
-The image targets Linux x86-64. Docker Desktop uses `linux/amd64` emulation on
-Apple Silicon because the SQLite extension has no Linux arm64 build; native
-macOS remains faster for local indexing.
+macOS and Windows use their default Claude Desktop config locations. Linux has
+no default Claude Desktop location. On Linux with a client using the same
+`mcpServers` config format, or with a non-standard location, pass the complete
+config path:
+
+```bash
+./scripts/install_docker.sh --config /path/to/config.json /path/to/markdown
+```
+
+```powershell
+.\scripts\install_docker.ps1 C:\path\to\markdown -ConfigPath C:\path\to\config.json
+```
+
+The installer builds the image, finds Docker, and adds the MCP server while
+preserving existing entries and backing up the config. Completely quit and
+restart the MCP client. Its first server start downloads and verifies the SQLite
+extensions and ~603 MB model, then builds the index. Later starts reuse files
+stored in the `local-rag-data` Docker volume and can work offline.
+
+The image targets Linux x86-64. Docker Desktop runs it through `linux/amd64`
+emulation on Apple Silicon because the SQLite extensions used here have no
+Linux arm64 build.
+
+### Updating the index
+
+The container checks Markdown paths, contents, artifact versions, chunk size,
+and overlap each time it starts. Changed inputs trigger a full re-ingest;
+unchanged inputs reuse the existing index. File changes are not watched while
+the container is running, so restart the MCP server or Claude Desktop to pick
+them up.
+
+The image uses fixed paths: read-only Markdown input at `/notes` and generated
+state at `/data`. Rebuilds sharing a volume are serialized and replace the
+database only after success. The container runs as a non-root user, publishes
+no port, and uses `stdin` and `stdout` exclusively for MCP. An HTTP deployment
+would need a separate transport and authentication.
 
 ---
 

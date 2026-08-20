@@ -12,6 +12,9 @@ from pathlib import Path
 from setup._db import load_env, server_name
 from setup._platform import detect
 
+DOCKER_IMAGE = "local-rag:dev"
+DOCKER_VOLUME = "local-rag-data"
+
 
 def _config_path(os_tag: str) -> Path:
     if os_tag == "macos":
@@ -26,6 +29,26 @@ def _find_uv() -> Path:
     if not uv:
         raise SystemExit("Could not find 'uv' on PATH. Install it (brew install uv) or pass --uv <path>.")
     return Path(uv).resolve()
+
+
+def _docker_entry(command: str, notes_dir: str, name: str) -> dict:
+    return {
+        "command": command,
+        "args": [
+            "run",
+            "--rm",
+            "-i",
+            "--platform",
+            "linux/amd64",
+            "-e",
+            f"MCP_SERVER_NAME={name}",
+            "-v",
+            f"{DOCKER_VOLUME}:/data",
+            "-v",
+            f"{notes_dir}:/notes:ro",
+            DOCKER_IMAGE,
+        ],
+    }
 
 
 def main() -> int:
@@ -51,20 +74,41 @@ def main() -> int:
             "MCP_SERVER_NAME from the project's .env."
         ),
     )
+    parser.add_argument("--docker", action="store_true", help="Register the Docker runtime.")
+    parser.add_argument("--docker-command", help="Host path to Docker.")
+    parser.add_argument("--notes-dir", help="Host path to Markdown notes.")
+    parser.add_argument("--config-path", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    os_tag, _ = detect()
-    config_path = _config_path(os_tag)
+    if args.config_path:
+        config_path = args.config_path.expanduser().resolve()
+    else:
+        os_tag, _ = detect()
+        config_path = _config_path(os_tag)
+
     project_dir = args.project_dir.expanduser().resolve()
-    uv_path = args.uv.expanduser().resolve() if args.uv else _find_uv()
 
-    if args.uv and not uv_path.is_file():
-        raise SystemExit(f"uv binary not found at {uv_path}")
-    if not (project_dir / "server.py").is_file():
-        raise SystemExit(f"server.py not found under {project_dir}")
-
-    load_env(project_dir)
-    name = args.name or server_name()
+    if args.docker:
+        load_env(project_dir)
+        name = args.name or server_name()
+        if not args.notes_dir:
+            raise SystemExit("--notes-dir is required in Docker mode")
+        docker_command = args.docker_command or shutil.which("docker")
+        if not docker_command:
+            raise SystemExit("Could not find Docker; pass --docker-command <path>.")
+        new_entry = _docker_entry(str(docker_command), args.notes_dir, name)
+    else:
+        uv_path = args.uv.expanduser().resolve() if args.uv else _find_uv()
+        if args.uv and not uv_path.is_file():
+            raise SystemExit(f"uv binary not found at {uv_path}")
+        if not (project_dir / "server.py").is_file():
+            raise SystemExit(f"server.py not found under {project_dir}")
+        load_env(project_dir)
+        name = args.name or server_name()
+        new_entry = {
+            "command": str(uv_path),
+            "args": ["run", "--directory", str(project_dir), "server.py"],
+        }
 
     if config_path.exists():
         raw = config_path.read_bytes()
@@ -79,10 +123,6 @@ def main() -> int:
         config = {}
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
-    new_entry = {
-        "command": str(uv_path),
-        "args": ["run", "--directory", str(project_dir), "server.py"],
-    }
     servers = config.setdefault("mcpServers", {})
     existing = servers.get(name)
     if existing and existing != new_entry:
