@@ -84,22 +84,34 @@ def main() -> int:
         print(f"  memory: {memory_final}")
         return 0
 
-    args.extensions_dir.mkdir(parents=True, exist_ok=True)
+    args.extensions_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory() as tmp_str:
+    # Keep staging on the target filesystem so os.replace() remains atomic
+    # when the destination is a Docker volume or a separate mount.
+    with tempfile.TemporaryDirectory(
+        prefix=".local-rag-extensions-",
+        dir=args.extensions_dir.parent,
+    ) as tmp_str:
         tmp = Path(tmp_str)
+        staging_dir = tmp / "extensions"
 
         vector_url = VECTOR_URL_TEMPLATE.format(version=VECTOR_VERSION, asset=VECTOR_ASSETS[key])
         vector_archive = tmp / VECTOR_ASSETS[key]
         print(f"Downloading {vector_url}", file=sys.stderr)
         stream_download(vector_url, vector_archive, expected_sha256=VECTOR_ARCHIVE_SHA256[key])
-        vector_path = _extract_extension(vector_archive, args.extensions_dir, suffix, "vector")
+        vector_staged = _extract_extension(vector_archive, staging_dir, suffix, "vector")
 
         memory_url = MEMORY_URL_TEMPLATE.format(version=MEMORY_VERSION, asset=MEMORY_ASSETS[key])
         memory_archive = tmp / MEMORY_ASSETS[key]
         print(f"Downloading {memory_url}", file=sys.stderr)
         stream_download(memory_url, memory_archive, expected_sha256=MEMORY_ARCHIVE_SHA256[key])
-        memory_path = _extract_extension(memory_archive, args.extensions_dir, suffix, "memory")
+        memory_staged = _extract_extension(memory_archive, staging_dir, suffix, "memory")
+
+        args.extensions_dir.mkdir(parents=True, exist_ok=True)
+        vector_path = args.extensions_dir / f"vector{suffix}"
+        memory_path = args.extensions_dir / f"memory{suffix}"
+        os.replace(vector_staged, vector_path)
+        os.replace(memory_staged, memory_path)
 
     print("Extensions installed:")
     print(f"  vector: {vector_path}")

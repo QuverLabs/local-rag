@@ -4,18 +4,11 @@ FROM ghcr.io/astral-sh/uv:0.11.19@sha256:b46b03ddfcfbf8f547af7e9eaefdf8a39c8cebc
 
 FROM python:3.14-slim-bookworm@sha256:23c59390fc717bf09f9336908199a0ae75d9c4264bf296123f94ad772fea3b52
 
-ARG APP_UID=10001
-ARG APP_GID=10001
-
 ENV PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH" \
-    MCP_SERVER_NAME=local-rag \
-    NOTES_DIR=/notes \
-    MEMORY_DB=/data/memory.db \
-    EXTENSIONS_DIR=/data/extensions \
-    MODEL_PATH=/data/models/multilingual-e5-large-instruct-q8_0.gguf
+    MCP_SERVER_NAME=local-rag
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 
@@ -25,15 +18,13 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-install-project
 
-COPY --chown=${APP_UID}:${APP_GID} . /app
+COPY --chown=10001:10001 . /app
 
-RUN groupadd --gid "${APP_GID}" app \
-    && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home app \
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid 10001 --create-home app \
     && mkdir -p /data/extensions /data/models /notes \
     && chown -R app:app /data /notes
 
 USER app
-
-VOLUME ["/data"]
 
 ENTRYPOINT ["python", "-m", "docker.start"]

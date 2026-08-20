@@ -30,11 +30,8 @@ keys, no external vector DB.
 
 ## Docker quickstart
 
-The container keeps verified extensions, the embedding model, the SQLite
-index, artifact metadata, and a source manifest in the named volume
-`local-rag-data`. Mount the directory containing Markdown sources read-only at
-`/notes`; startup fails instead of serving an empty index when no `.md` files
-are present.
+The image uses fixed paths: read-only Markdown input at `/notes` and generated
+state at `/data`. Startup fails when `/notes` contains no `.md` files.
 
 ```bash
 # Build the Linux x86-64 image.
@@ -48,31 +45,21 @@ docker run --rm -i \
   local-rag:dev
 ```
 
-On every start the container verifies pinned SHA-256 values for the SQLite
-extensions and the ~603 MB embedding model. Missing, changed, or version-mismatched
-artifacts are downloaded again. It then hashes the relative paths and contents
-of all `.md` files below `/notes`. A missing index or changed manifest triggers
-a full re-ingest; unchanged sources reuse the existing index.
+The first start downloads and verifies the SQLite extensions and ~603 MB model;
+later starts can work offline. A fingerprint covers Markdown paths and content,
+artifact versions, chunk size, and overlap. Changed inputs trigger a full
+re-ingest; unchanged inputs reuse the index. Rebuilds sharing a volume are
+serialized and replace the database only after success, preserving the last
+valid index in `local-rag-data`.
 
-Index updates sharing one volume are serialized. A new database is built next
-to the active index and replaces it atomically only after successful ingest and
-source verification. The last valid index therefore survives a failed rebuild.
-Artifacts and the index survive removal of the container because they live in
-`local-rag-data`.
+The non-root container then runs the MCP server over JSON-RPC on `stdin` and
+`stdout`; it publishes no port. Desktop clients should launch the same
+`docker run` command. HTTP deployment would need a separate transport and
+authentication. Docker path variables are intentionally not configurable.
 
-After preparation the process starts the stdio MCP server and waits for JSON-RPC
-on standard input. No port is published. A desktop MCP client should launch the
-same `docker run` command as its subprocess. A shared HTTP service would require
-a separate transport and an authentication layer.
-
-The image runs without root privileges, and the Markdown source mount is
-read-only. The first start requires outbound Internet access; later starts can
-run offline once the artifacts are present.
-
-On Apple Silicon Docker Desktop emulates the Linux x86-64 image because the
-upstream SQLite extension does not publish a Linux arm64 binary. Native macOS
-execution remains faster for local indexing; the container is intended mainly
-for x86-64 Docker hosts.
+The image targets Linux x86-64. Docker Desktop uses `linux/amd64` emulation on
+Apple Silicon because the SQLite extension has no Linux arm64 build; native
+macOS remains faster for local indexing.
 
 ---
 
