@@ -18,11 +18,72 @@ keys, no external vector DB.
 
 - **macOS** (Apple Silicon) for indexing; **Windows x64** supported for
   server-only via a self-contained ZIP bundle.
+- **Docker:** Linux x86-64 is supported through the provided image.
+  Apple Silicon runs this image through `linux/amd64` emulation.
 - **Python 3.14+** (Homebrew — the system Python on macOS cannot load SQLite
   extensions).
 - **uv** (`brew install uv`).
 - **~1.5 GB** disk (model + DB).
 - **Claude Desktop** installed.
+
+---
+
+## Docker quickstart
+
+This setup needs Docker running (Docker Desktop on macOS/Windows or Docker
+Engine on Linux) and a directory containing at least one `.md` file. The image
+is built locally; it is not published in a container registry.
+
+### Install
+
+macOS:
+
+```bash
+./scripts/install_docker.sh /path/to/markdown
+```
+
+Windows PowerShell:
+
+```powershell
+.\scripts\install_docker.ps1 C:\path\to\markdown
+```
+
+macOS and Windows use their default Claude Desktop config locations. Linux has
+no default Claude Desktop location. On Linux with a client using the same
+`mcpServers` config format, or with a non-standard location, pass the complete
+config path:
+
+```bash
+./scripts/install_docker.sh --config /path/to/config.json /path/to/markdown
+```
+
+```powershell
+.\scripts\install_docker.ps1 C:\path\to\markdown -ConfigPath C:\path\to\config.json
+```
+
+The installer builds the image, finds Docker, and adds the MCP server while
+preserving existing entries and backing up the config. Completely quit and
+restart the MCP client. Its first server start downloads and verifies the SQLite
+extensions and ~603 MB model, then builds the index. Later starts reuse files
+stored in the `local-rag-data` Docker volume and can work offline.
+
+The image targets Linux x86-64. Docker Desktop runs it through `linux/amd64`
+emulation on Apple Silicon because the SQLite extensions used here have no
+Linux arm64 build.
+
+### Updating the index
+
+The container checks Markdown paths, contents, artifact versions, chunk size,
+and overlap each time it starts. Changed inputs trigger a full re-ingest;
+unchanged inputs reuse the existing index. File changes are not watched while
+the container is running, so restart the MCP server or Claude Desktop to pick
+them up.
+
+The image uses fixed paths: read-only Markdown input at `/notes` and generated
+state at `/data`. Rebuilds sharing a volume are serialized and replace the
+database only after success. The container runs as a non-root user, publishes
+no port, and uses `stdin` and `stdout` exclusively for MCP. An HTTP deployment
+would need a separate transport and authentication.
 
 ---
 

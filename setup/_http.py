@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from hashlib import sha256
 from pathlib import Path
 
 import httpx
@@ -16,6 +17,7 @@ def stream_download(
     *,
     timeout: float = 60.0,
     chunk_size: int = 65536,
+    expected_sha256: str | None = None,
 ) -> None:
     """Stream-download url to dest with a tqdm progress bar.
 
@@ -43,6 +45,16 @@ def stream_download(
                 for chunk in response.iter_bytes(chunk_size=chunk_size):
                     fp.write(chunk)
                     progress.update(len(chunk))
+        if expected_sha256 is not None:
+            digest = sha256()
+            with part.open("rb") as fp:
+                while chunk := fp.read(1024 * 1024):
+                    digest.update(chunk)
+            actual = digest.hexdigest()
+            if actual != expected_sha256:
+                raise RuntimeError(
+                    f"SHA256 mismatch for {dest.name}: expected {expected_sha256}, got {actual}"
+                )
         os.replace(part, dest)
     except Exception:
         part.unlink(missing_ok=True)
