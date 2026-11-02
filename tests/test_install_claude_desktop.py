@@ -257,9 +257,7 @@ def test_main_preserves_other_mcp_servers(tmp_path, monkeypatch):
     existing = tmp_path / "claude_desktop_config.json"
     existing.write_text(json.dumps({"mcpServers": {"other-server": {"command": "npx"}}}))
 
-    config_path = _run_main(
-        ["--project-dir", str(project), "--uv", str(uv)], monkeypatch, tmp_path
-    )
+    config_path = _run_main(["--project-dir", str(project), "--uv", str(uv)], monkeypatch, tmp_path)
     data = json.loads(config_path.read_text())
     assert "other-server" in data["mcpServers"]
     assert "local-rag" in data["mcpServers"]
@@ -272,9 +270,7 @@ def test_main_replaces_differing_entry(tmp_path, monkeypatch, capsys):
     existing = tmp_path / "claude_desktop_config.json"
     existing.write_text(json.dumps({"mcpServers": {"local-rag": old_entry}}))
 
-    config_path = _run_main(
-        ["--project-dir", str(project), "--uv", str(uv)], monkeypatch, tmp_path
-    )
+    config_path = _run_main(["--project-dir", str(project), "--uv", str(uv)], monkeypatch, tmp_path)
     data = json.loads(config_path.read_text())
     assert data["mcpServers"]["local-rag"]["command"] == str(uv)
     assert "Warning" in capsys.readouterr().err
@@ -297,9 +293,7 @@ def test_main_uses_server_name_from_env(tmp_path, monkeypatch):
     project = _project_dir(tmp_path)
     uv = _fake_uv(tmp_path)
     monkeypatch.setenv("MCP_SERVER_NAME", "env-rag")
-    config_path = _run_main(
-        ["--project-dir", str(project), "--uv", str(uv)], monkeypatch, tmp_path
-    )
+    config_path = _run_main(["--project-dir", str(project), "--uv", str(uv)], monkeypatch, tmp_path)
     data = json.loads(config_path.read_text())
     assert "env-rag" in data["mcpServers"]
 
