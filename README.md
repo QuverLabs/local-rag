@@ -20,7 +20,7 @@ keys, no external vector DB.
   server-only via a self-contained ZIP bundle.
 - **Docker:** Linux x86-64 is supported through the provided image.
   Apple Silicon runs this image through `linux/amd64` emulation.
-- **Python 3.14+**; the project selects Python 3.15 by default. Use a Python build
+- **Python 3.15+**; the project selects Python 3.15.2 by default. Use a Python build
   that supports SQLite extensions (the macOS system Python does not).
 - **uv** (`brew install uv`).
 - **~1.5 GB** disk (model + DB).
