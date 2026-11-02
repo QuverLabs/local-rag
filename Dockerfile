@@ -16,7 +16,7 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
+    uv sync --locked --no-dev --no-install-project --python /usr/local/bin/python3
 
 COPY --chown=10001:10001 . /app
 

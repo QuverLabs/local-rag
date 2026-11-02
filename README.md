@@ -20,8 +20,8 @@ keys, no external vector DB.
   server-only via a self-contained ZIP bundle.
 - **Docker:** Linux x86-64 is supported through the provided image.
   Apple Silicon runs this image through `linux/amd64` emulation.
-- **Python 3.14+** (Homebrew — the system Python on macOS cannot load SQLite
-  extensions).
+- **Python 3.14+**; the project selects Python 3.15 by default. Use a Python build
+  that supports SQLite extensions (the macOS system Python does not).
 - **uv** (`brew install uv`).
 - **~1.5 GB** disk (model + DB).
 - **Claude Desktop** installed.
@@ -90,7 +90,7 @@ would need a separate transport and authentication.
 ## Quickstart (macOS)
 
 ```bash
-brew install python@3.14 uv
+brew install python@3.15 uv
 git clone <this-repo> local-rag && cd local-rag
 uv sync
 
@@ -267,7 +267,7 @@ CI (GitHub Actions) runs the same commands on every push and PR.
   inherit your shell `PATH`. Logs: `~/Library/Logs/Claude/` (macOS),
   `%APPDATA%\Claude\logs\` (Windows).
 - **`load_extension is not allowed`.** Your Python was built without
-  extension loading. On macOS use Homebrew Python (`brew install python@3.14`);
+  extension loading. On macOS use Homebrew Python (`brew install python@3.15`);
   the system Python lacks this.
 - **`memory.dylib is not a valid SQLite extension`.** Re-download:
   `uv run python -m setup.download_extensions --force`.
