@@ -9,14 +9,6 @@ updates:
       python-deps:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
-      python-major:
-        patterns:
-          - "*"
-        update-types:
-          - "major"
 
   - package-ecosystem: "github-actions"
     directory: "/"
