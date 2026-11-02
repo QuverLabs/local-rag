@@ -28,7 +28,7 @@ def _find_uv() -> Path:
     uv = shutil.which("uv")
     if not uv:
         raise SystemExit("Could not find 'uv' on PATH. Install it (brew install uv) or pass --uv <path>.")
-    return Path(uv).resolve()
+    return Path(uv)
 
 
 def _docker_entry(command: str, notes_dir: str, name: str) -> dict:
@@ -98,7 +98,7 @@ def main() -> int:
             raise SystemExit("Could not find Docker; pass --docker-command <path>.")
         new_entry = _docker_entry(str(docker_command), args.notes_dir, name)
     else:
-        uv_path = args.uv.expanduser().resolve() if args.uv else _find_uv()
+        uv_path = args.uv.expanduser() if args.uv else _find_uv()
         if args.uv and not uv_path.is_file():
             raise SystemExit(f"uv binary not found at {uv_path}")
         if not (project_dir / "server.py").is_file():
